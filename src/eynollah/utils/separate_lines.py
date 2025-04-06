@@ -1573,7 +1573,11 @@ def return_deskew_slop(img_patch_org, sigma_des,n_tot_angles=100,
 def get_smallest_skew(img, sigma_des, angles, logger=None, plotter=None, map=map):
     if logger is None:
         logger = getLogger(__package__)
-    results = list(map(partial(do_image_rotation, img=img, sigma_des=sigma_des, logger=logger), angles))
+    results = list(map(do_image_rotation,
+                       angles,
+                       [img] * len(angles),
+                       [sigma_des] * len(angles),
+                       [logger] * len(angles)))
     if plotter:
         plotter.save_plot_of_rotation_angle(angles, results)
     try:

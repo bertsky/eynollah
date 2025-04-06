@@ -171,11 +171,11 @@ def do_work_of_contours_in_image(contour, index_r_con, img, slope_first):
 def get_textregion_contours_in_org_image_multi(cnts, img, slope_first, map=map):
     if not len(cnts):
         return [], []
-    results = map(partial(do_work_of_contours_in_image,
-                          img=img,
-                          slope_first=slope_first,
-                          ),
-                  cnts, range(len(cnts)))
+    results = map(do_work_of_contours_in_image,
+                  cnts, range(len(cnts)),
+                  [img] * len(cnts),
+                  [slope_first] * len(cnts)
+                  )
     return tuple(zip(*results))
 
 def get_textregion_contours_in_org_image(cnts, img, slope_first):
@@ -253,12 +253,12 @@ def get_textregion_contours_in_org_image_light(cnts, img, slope_first, confidenc
     ##cnts = list( (np.array(cnts)/2).astype(np.int16) )
     #cnts = cnts/2
     cnts = [(i/6).astype(int) for i in cnts]
-    results = map(partial(do_back_rotation_and_get_cnt_back,
-                          img=img,
-                          slope_first=slope_first,
-                          confidence_matrix=confidence_matrix,
-                          ),
-                  cnts, range(len(cnts)))
+    results = map(do_back_rotation_and_get_cnt_back,
+                  cnts, range(len(cnts)),
+                  [img] * len(cnts),
+                  [slope_first] * len(cnts),
+                  [confidence_matrix] * len(cnts)
+                  )
     contours, indexes, conf_contours = tuple(zip(*results))
     return [i*6 for i in contours], list(conf_contours)
 
