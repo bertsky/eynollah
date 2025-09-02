@@ -4313,6 +4313,8 @@ class Eynollah:
         def filterfun(lis):
             if len(lis) == 0:
                 return []
+            if len(textregion_index_to_del) == 0:
+                return lis
             return list(np.delete(lis, list(textregion_index_to_del)))
 
         return (filterfun(contours),
