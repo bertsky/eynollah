@@ -4747,12 +4747,12 @@ class Eynollah:
                 contours_only_text_parent, contours_only_text_parent_d_ordered, text_only, marginal_cnts=polygons_of_marginals)
             #print("text region early 3.5 in %.1fs", time.time() - t0)
             txt_con_org , conf_contours_textregions = get_textregion_contours_in_org_image_light(
-                contours_only_text_parent, self.image, confidence_matrix,  map=self.executor.map)
+                contours_only_text_parent, self.image, confidence_matrix)
             #txt_con_org = dilate_textregion_contours(txt_con_org)
             #contours_only_text_parent = dilate_textregion_contours(contours_only_text_parent)
         else:
             txt_con_org , conf_contours_textregions = get_textregion_contours_in_org_image_light(
-                contours_only_text_parent, self.image, confidence_matrix,  map=self.executor.map)
+                contours_only_text_parent, self.image, confidence_matrix)
         #print("text region early 4 in %.1fs", time.time() - t0)
         boxes_text, _ = get_text_region_boxes_by_given_contours(contours_only_text_parent)
         boxes_marginals, _ = get_text_region_boxes_by_given_contours(polygons_of_marginals)
