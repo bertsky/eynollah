@@ -860,8 +860,7 @@ def putt_bb_of_drop_capitals_of_model_in_patches_in_layout(layout_in_patch, drop
         all_drop_capital_pixels = np.sum(mask_of_drop_cpaital_in_early_layout==1)
 
         percent_text_to_all_in_drop = all_drop_capital_pixels_which_is_text_in_early_lo / float(all_drop_capital_pixels)
-        
-        if (areas_cnt_text[jj] * float(drop_only.shape[0] * drop_only.shape[1]) / float(w * h) > 0.7 and
+        if (areas_cnt_text[jj] * float(drop_only.shape[0] * drop_only.shape[1]) / float(w * h) > 0.6 and
             percent_text_to_all_in_drop >= 0.3):
             layout_in_patch[box0] = drop_capital_label
         else:
@@ -965,7 +964,7 @@ def check_any_text_region_in_model_one_is_main_or_header_light(
     regions_model_full = cv2.resize(regions_model_full, (regions_model_full.shape[1] // zoom,
                                                          regions_model_full.shape[0] // zoom),
                                     interpolation=cv2.INTER_NEAREST)
-    contours_only_text_parent_z = [(cnt / zoom).astype(int) for cnt in contours_only_text_parent]
+    contours_only_text_parent_z = [i // zoom for i in  contours_only_text_parent]
 
     ###
     cx_main, cy_main, x_min_main, x_max_main, y_min_main, y_max_main, y_corr_x_min_from_argmin = \
@@ -1019,6 +1018,7 @@ def check_any_text_region_in_model_one_is_main_or_header_light(
             all_box_coord_main.append(all_box_coord[ii])
             slopes_main.append(slopes[ii])
             all_found_textline_polygons_main.append(all_found_textline_polygons[ii])
+
         #print(all_pixels,pixels_main,pixels_header)
 
     ### to make it faster
