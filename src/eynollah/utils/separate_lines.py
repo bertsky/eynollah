@@ -1503,7 +1503,6 @@ def return_deskew_slop(img_patch_org, sigma_des,n_tot_angles=100,
                                  #np.array([0 , 45 , 90 , -45])
         ))
         angle, var = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
-        print("main2", angle, var)
 
         early_slope_edge=11
         if abs(angle) > early_slope_edge:
@@ -1513,12 +1512,10 @@ def return_deskew_slop(img_patch_org, sigma_des,n_tot_angles=100,
                 angles2 = np.linspace(90, 12, n_tot_angles)
             angle2, var2 = get_smallest_skew(img_resized, sigma_des, angles2, map=map, logger=logger, plotter=plotter)
             if var2 > var:
-                print("main4", angle2, var2)
                 angle = angle2
     else:
         angles = np.linspace(-25, 25, int(0.5 * n_tot_angles) + 10)
         angle, var = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
-        print("roi1", angle, var)
 
         early_slope_edge=22
         if abs(angle) > early_slope_edge:
@@ -1528,12 +1525,13 @@ def return_deskew_slop(img_patch_org, sigma_des,n_tot_angles=100,
                 angles2 = np.linspace(90, 25, int(0.5 * n_tot_angles) + 10)
             angle2, var2 = get_smallest_skew(img_resized, sigma_des, angles2, map=map, logger=logger, plotter=plotter)
             if var2 > var:
-                print("roi2", angle2, var2)
                 angle = angle2
     return angle
 
 def get_smallest_skew(img, sigma_des, angles, logger=None, plotter=None, map=None):
     return get_angle(img, angles=angles, map=map)
+
+"""
     if logger is None:
         logger = getLogger(__package__)
     with share_ndarray(img) as img_shared:
@@ -1551,6 +1549,7 @@ def get_smallest_skew(img, sigma_des, angles, logger=None, plotter=None, map=Non
         angle = 0
         var = 0
     return angle, var
+"""
 
 @wrap_ndarray_shared(kw='image_page')
 @wrap_ndarray_shared(kw='textline_mask_tot_ea')
