@@ -24,6 +24,8 @@ from . import (
     box2rect,
     box2slice,
 )
+#from jdeskew.estimator import get_angle
+from .jdeskew import get_angle
 
 def dedup_separate_lines(img_patch, contour_text_interest, thetha, axis):
     (h, w) = img_patch.shape[:2]
@@ -1514,59 +1516,59 @@ def return_deskew_slop(img_patch_org, sigma_des,n_tot_angles=100,
                        main_page=False, logger=None, plotter=None, map=None):
     if main_page and plotter:
         plotter.save_plot_of_textline_density(img_patch_org)
-    
-    img_int=np.zeros((img_patch_org.shape[0],img_patch_org.shape[1]))
-    img_int[:,:]=img_patch_org[:,:]#img_patch_org[:,:,0]
 
-    max_shape=np.max(img_int.shape)
-    img_resized=np.zeros((int( max_shape*(1.1) ) , int( max_shape*(1.1) ) ))
-
-    onset_x=int((img_resized.shape[1]-img_int.shape[1])/2.)
-    onset_y=int((img_resized.shape[0]-img_int.shape[0])/2.)
-
-    #img_resized=np.zeros((int( img_int.shape[0]*(1.8) ) , int( img_int.shape[1]*(2.6) ) ))
-    #img_resized[ int( img_int.shape[0]*(.4)):int( img_int.shape[0]*(.4))+img_int.shape[0],
-    #             int( img_int.shape[1]*(.8)):int( img_int.shape[1]*(.8))+img_int.shape[1] ]=img_int[:,:]
-    img_resized[ onset_y:onset_y+img_int.shape[0] , onset_x:onset_x+img_int.shape[1] ]=img_int[:,:]
-
+    img_h, img_w = img_patch_org.shape[:2]
+    max_shape = int(np.max(img_patch_org.shape) * 1.1)
+    marg_y = (max_shape - img_h) // 2
+    marg_x = (max_shape - img_w) // 2
+    img_med = np.median(img_patch_org, axis=(0, 1))
+    img_resized = cv2.copyMakeBorder(src=img_patch_org,
+                                     top=marg_y,
+                                     bottom=marg_y,
+                                     left=marg_x,
+                                     right=marg_x,
+                                     borderType=cv2.BORDER_CONSTANT,
+                                     value=img_med,
+    )
     if main_page and img_patch_org.shape[1] > img_patch_org.shape[0]:
-        angles = np.array([-45, 0, 45, 90,])
+        #angles = np.array([-45, -22.5, 0, 22.5, 45, 90,])
+        #angles = np.append(np.linspace(-45, 45, n_tot_angles), 90)
+        # cannot actually do 90° with this method
+        angles = np.linspace(-45, 45, n_tot_angles)
         angle, _ = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
 
-        angles = np.linspace(angle - 22.5, angle + 22.5, n_tot_angles)
-        angle, _ = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
     elif main_page:
-        #angles = np.linspace(-12, 12, n_tot_angles)#np.array([0 , 45 , 90 , -45])
-        angles = np.concatenate((np.linspace(-12, -7, n_tot_angles // 4),
-                                 np.linspace(-6, 6, n_tot_angles // 2),
-                                 np.linspace(7, 12, n_tot_angles // 4)))
+        angles = np.linspace(-12, 12, n_tot_angles)
         angle, var = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
 
         early_slope_edge=11
         if abs(angle) > early_slope_edge:
+            #angles2 = np.linspace(90, 12, n_tot_angles)
+            # cannot actually do 90° with this method
+            angles2 = np.linspace(45, 12, n_tot_angles)
             if angle < 0:
-                angles2 = np.linspace(-90, -12, n_tot_angles)
-            else:
-                angles2 = np.linspace(90, 12, n_tot_angles)
+                angles2 = -angles2
             angle2, var2 = get_smallest_skew(img_resized, sigma_des, angles2, map=map, logger=logger, plotter=plotter)
             if var2 > var:
                 angle = angle2
     else:
-        angles = np.linspace(-25, 25, int(0.5 * n_tot_angles) + 10)
+        angles = np.linspace(-25, 25, n_tot_angles // 2 + 10)
         angle, var = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
 
         early_slope_edge=22
         if abs(angle) > early_slope_edge:
+            #angles2 = np.linspace(90, 25, n_tot_angles // 2 + 10)
+            # cannot actually do 90° with this method
+            angles2 = np.linspace(45, 25, n_tot_angles // 2 + 10)
             if angle < 0:
-                angles2 = np.linspace(-90, -25, int(0.5 * n_tot_angles) + 10)
-            else:
-                angles2 = np.linspace(90, 25, int(0.5 * n_tot_angles) + 10)
+                angles2 = -angles2
             angle2, var2 = get_smallest_skew(img_resized, sigma_des, angles2, map=map, logger=logger, plotter=plotter)
             if var2 > var:
                 angle = angle2
     return angle
 
-def get_smallest_skew(img, sigma_des, angles, logger=None, plotter=None, map=map):
+def get_smallest_skew(img, sigma_des, angles, logger=None, plotter=None, map=None):
+    return get_angle(img, angles=angles, map=map)
     if logger is None:
         logger = getLogger(__package__)
     if map is None:
@@ -1590,10 +1592,13 @@ def get_smallest_skew(img, sigma_des, angles, logger=None, plotter=None, map=map
         var = 0
     return angle, var
 
+@wrap_ndarray_shared(kw='image_page')
 @wrap_ndarray_shared(kw='textline_mask_tot_ea')
 def do_work_of_slopes_new(
         box_text, contour, contour_par,
-        textline_mask_tot_ea=None, slope_deskew=0.0,
+        textline_mask_tot_ea=None,
+        image_page=None,
+        slope_deskew=0.0,
         logger=None, MAX_SLOPE=999, KERNEL=None, plotter=None
 ):
     if KERNEL is None:
@@ -1606,10 +1611,11 @@ def do_work_of_slopes_new(
     crop_coor = box2rect(box_text)
     mask_textline = np.zeros(textline_mask_tot_ea.shape)
     mask_textline = cv2.fillPoly(mask_textline, pts=[contour], color=(1,1,1))
-    all_text_region_raw = textline_mask_tot_ea * mask_textline
+    #all_text_region_raw = textline_mask_tot_ea * mask_textline
+    all_text_region_raw = image_page * mask_textline
     all_text_region_raw = all_text_region_raw[y: y + h, x: x + w].astype(np.uint8)
     img_int_p = all_text_region_raw[:,:]
-    img_int_p = cv2.erode(img_int_p, KERNEL, iterations=2)
+    #img_int_p = cv2.erode(img_int_p, KERNEL, iterations=2)
 
     if not np.prod(img_int_p.shape) or img_int_p.shape[0] /img_int_p.shape[1] < 0.1:
         slope = 0
@@ -1618,19 +1624,10 @@ def do_work_of_slopes_new(
         cnt_clean_rot = textline_contours_postprocessing(all_text_region_raw, slope_for_all, contour_par, box_text, 0)
     else:
         try:
-            textline_con, hierarchy = return_contours_of_image(img_int_p)
-            textline_con_fil = filter_contours_area_of_image(img_int_p, textline_con,
-                                                             hierarchy,
-                                                             max_area=1, min_area=0.00008)
-            y_diff_mean = find_contours_mean_y_diff(textline_con_fil) if len(textline_con_fil) > 1 else np.NaN
-            if np.isnan(y_diff_mean):
-                slope_for_all = MAX_SLOPE
-            else:
-                sigma_des = max(1, int(y_diff_mean * (4.0 / 40.0)))
-                img_int_p[img_int_p > 0] = 1
-                slope_for_all = return_deskew_slop(img_int_p, sigma_des, logger=logger, plotter=plotter)
-                if abs(slope_for_all) <= 0.5:
-                    slope_for_all = slope_deskew
+            slope_for_all = return_deskew_slop(img_int_p, 1.0, logger=logger, plotter=plotter)
+            # rs: ignoring per-region results iff they are in that range makes no sense to me
+            # if abs(slope_for_all) <= 0.5:
+            #     slope_for_all = slope_deskew
         except:
             logger.exception("cannot determine angle of contours")
             slope_for_all = MAX_SLOPE
@@ -1650,10 +1647,10 @@ def do_work_of_slopes_new(
     return cnt_clean_rot, crop_coor, slope
 
 @wrap_ndarray_shared(kw='textline_mask_tot_ea')
-@wrap_ndarray_shared(kw='mask_texts_only')
+@wrap_ndarray_shared(kw='image_page')
 def do_work_of_slopes_new_curved(
         box_text, contour_par,
-        textline_mask_tot_ea=None, mask_texts_only=None,
+        textline_mask_tot_ea=None, image_page=None,
         num_col=1, scale_par=1.0, slope_deskew=0.0,
         logger=None, MAX_SLOPE=999, KERNEL=None, plotter=None
 ):
@@ -1664,8 +1661,7 @@ def do_work_of_slopes_new_curved(
     logger.debug("enter do_work_of_slopes_new_curved")
 
     x, y, w, h = box_text
-    all_text_region_raw = textline_mask_tot_ea[y: y + h, x: x + w].astype(np.uint8)
-    img_int_p = all_text_region_raw[:, :]
+    img_int_p = image_page[y: y + h, x: x + w].astype(np.uint8)
 
     # img_int_p=cv2.erode(img_int_p,KERNEL,iterations = 2)
     # plt.imshow(img_int_p)
@@ -1676,19 +1672,10 @@ def do_work_of_slopes_new_curved(
         slope_for_all = slope_deskew
     else:
         try:
-            textline_con, hierarchy = return_contours_of_image(img_int_p)
-            textline_con_fil = filter_contours_area_of_image(img_int_p, textline_con,
-                                                             hierarchy,
-                                                             max_area=1, min_area=0.0008)
-            y_diff_mean = find_contours_mean_y_diff(textline_con_fil) if len(textline_con_fil) > 1 else np.NaN
-            if np.isnan(y_diff_mean):
-                slope_for_all = MAX_SLOPE
-            else:
-                sigma_des = max(1, int(y_diff_mean * (4.0 / 40.0)))
-                img_int_p[img_int_p > 0] = 1
-                slope_for_all = return_deskew_slop(img_int_p, sigma_des, logger=logger, plotter=plotter)
-                if abs(slope_for_all) < 0.5:
-                    slope_for_all = slope_deskew
+            slope_for_all = return_deskew_slop(img_int_p, 1.0, logger=logger, plotter=plotter)
+            # rs: ignoring per-region results iff they are in that range makes no sense to me
+            # if abs(slope_for_all) < 0.5:
+            #     slope_for_all = slope_deskew
         except:
             logger.exception("cannot determine angle of contours")
             slope_for_all = MAX_SLOPE
@@ -1700,45 +1687,36 @@ def do_work_of_slopes_new_curved(
     crop_coor = box2rect(box_text)
 
     if abs(slope_for_all) < 45:
-        textline_region_in_image = np.zeros(textline_mask_tot_ea.shape)
+        textline_region_in_image = np.zeros_like(textline_mask_tot_ea)
         x, y, w, h = cv2.boundingRect(contour_par)
-        mask_biggest = np.zeros(mask_texts_only.shape)
-        mask_biggest = cv2.fillPoly(mask_biggest, pts=[contour_par], color=(1, 1, 1))
-        mask_region_in_patch_region = mask_biggest[y : y + h, x : x + w]
-        textline_biggest_region = mask_biggest * textline_mask_tot_ea
-
-        textline_rotated_separated = separate_lines_new2(textline_biggest_region[y: y+h, x: x+w], 0,
+        region_mask = np.zeros_like(textline_mask_tot_ea)
+        region_mask = cv2.fillPoly(region_mask, pts=[contour_par], color=1)
+        textline_mask = region_mask * textline_mask_tot_ea
+        textline_mask = textline_mask[y: y + h, x: x + w]
+        region_mask = region_mask[y: y + h, x: x + w]
+        textline_mask = separate_lines_new2(textline_mask, 0,
                                                          num_col, slope_for_all,
                                                          logger=logger, plotter=plotter)
+        textline_mask[region_mask != 1] = 0
+        textline_region_in_image[y: y + h, x: x + w] = textline_mask
 
-
-        textline_rotated_separated[mask_region_in_patch_region[:, :] != 1] = 0
-
-        textline_region_in_image[y : y + h, x : x + w] = textline_rotated_separated
-
-
-        pixel_img = 1
-        cnt_textlines_in_image = return_contours_of_interested_textline(textline_region_in_image, pixel_img)
-
+        label_img = 1
         textlines_cnt_per_region = []
-        for jjjj in range(len(cnt_textlines_in_image)):
-            mask_biggest2 = np.zeros(mask_texts_only.shape)
-            mask_biggest2 = cv2.fillPoly(mask_biggest2, pts=[cnt_textlines_in_image[jjjj]], color=(1, 1, 1))
-            if num_col + 1 == 1:
-                mask_biggest2 = cv2.dilate(mask_biggest2, KERNEL, iterations=5)
-            else:
-                mask_biggest2 = cv2.dilate(mask_biggest2, KERNEL, iterations=4)
-
-            pixel_img = 1
-            mask_biggest2 = resize_image(mask_biggest2,
-                                         int(mask_biggest2.shape[0] * scale_par),
-                                         int(mask_biggest2.shape[1] * scale_par))
-            cnt_textlines_in_image_ind = return_contours_of_interested_textline(mask_biggest2, pixel_img)
+        cnt_textlines_in_image = return_contours_of_interested_textline(textline_region_in_image, label_img)
+        for cnt in cnt_textlines_in_image:
+            region_mask2 = np.zeros_like(textline_mask_tot_ea)
+            region_mask2 = cv2.fillPoly(region_mask2, pts=[cnt], color=1)
+            region_mask2 = cv2.dilate(region_mask2, KERNEL, iterations=5 if num_col == 0 else 4)
+            region_mask2 = resize_image(region_mask2,
+                                        int(region_mask2.shape[0] * scale_par),
+                                        int(region_mask2.shape[1] * scale_par))
+            cnt_textlines_in_image_ind = return_contours_of_interested_textline(region_mask2, label_img)
             try:
                 textlines_cnt_per_region.append(cnt_textlines_in_image_ind[0])
             except Exception as why:
                 logger.error(why)
     else:
+        all_text_region_raw = textline_mask_tot_ea[y: y + h, x: x + w]
         textlines_cnt_per_region = textline_contours_postprocessing(all_text_region_raw,
                                                                     slope_for_all, contour_par,
                                                                     box_text, True)
@@ -1747,7 +1725,7 @@ def do_work_of_slopes_new_curved(
 
 @wrap_ndarray_shared(kw='textline_mask_tot_ea')
 def do_work_of_slopes_new_light(
-        box_text, contour, contour_par,
+        box_text, contour_par,
         textline_mask_tot_ea=None, slope_deskew=0, textline_light=True,
         logger=None
 ):
@@ -1757,11 +1735,6 @@ def do_work_of_slopes_new_light(
 
     x, y, w, h = box_text
     crop_coor = box2rect(box_text)
-    mask_textline = np.zeros(textline_mask_tot_ea.shape)
-    mask_textline = cv2.fillPoly(mask_textline, pts=[contour], color=(1,1,1))
-    all_text_region_raw = textline_mask_tot_ea * mask_textline
-    all_text_region_raw = all_text_region_raw[y: y + h, x: x + w].astype(np.uint8)
-
     mask_only_con_region = np.zeros(textline_mask_tot_ea.shape)
     mask_only_con_region = cv2.fillPoly(mask_only_con_region, pts=[contour_par], color=(1, 1, 1))
 
