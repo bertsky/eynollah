@@ -1650,21 +1650,16 @@ def return_boxes_of_images_by_order_of_reading_new(
         #    0.1 * (np.abs(splitter_y_new[i+1]-splitter_y_new[i]))):
         if True:
             try:
-                if erosion_hurts:
-                    num_col, peaks_neg_fin = find_num_col(
-                        regions_without_separators[int(splitter_y_new[i]):int(splitter_y_new[i+1]),:],
-                        num_col_classifier, tables, multiplier=6.)
-                else:
-                    num_col, peaks_neg_fin = find_num_col(
-                        regions_without_separators[int(splitter_y_new[i]):int(splitter_y_new[i+1]),:],
-                        num_col_classifier, tables, multiplier=7.)
+                num_col, peaks_neg_fin = find_num_col(
+                    regions_without_separators[int(splitter_y_new[i]):int(splitter_y_new[i+1]),:],
+                    num_col_classifier, tables, multiplier=6. if erosion_hurts else 7.)
             except:
                 peaks_neg_fin=[]
                 num_col = 0
             try:
-                peaks_neg_fin_org=np.copy(peaks_neg_fin)
                 if (len(peaks_neg_fin)+1)<num_col_classifier or num_col_classifier==6:
                     #print('burda')
+                    peaks_neg_fin_org = np.copy(peaks_neg_fin)
                     if len(peaks_neg_fin)==0:
                         num_col, peaks_neg_fin = find_num_col(
                             regions_without_separators[int(splitter_y_new[i]):int(splitter_y_new[i+1]),:],

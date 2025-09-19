@@ -1493,7 +1493,10 @@ def return_deskew_slop(img_patch_org, sigma_des,n_tot_angles=100,
         angles = np.linspace(angle - 22.5, angle + 22.5, n_tot_angles)
         angle, _ = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
     elif main_page:
-        angles = np.array (list(np.linspace(-12, -7, int(n_tot_angles/4))) + list(np.linspace(-6, 6, n_tot_angles- 2* int(n_tot_angles/4))) + list(np.linspace(7, 12, int(n_tot_angles/4))))#np.linspace(-12, 12, n_tot_angles)#np.array([0 , 45 , 90 , -45])
+        #np.linspace(-12, 12, n_tot_angles)#np.array([0 , 45 , 90 , -45])
+        angles = np.concatenate((np.linspace(-12, -7, n_tot_angles // 4),
+                                 np.linspace(-6, 6, n_tot_angles // 2),
+                                 np.linspace(7, 12, n_tot_angles // 4)))
         angle, var = get_smallest_skew(img_resized, sigma_des, angles, map=map, logger=logger, plotter=plotter)
 
         early_slope_edge=11
