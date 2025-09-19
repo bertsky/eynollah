@@ -1804,16 +1804,15 @@ def return_boxes_of_images_by_order_of_reading_new(
                             args_up2=args_early_ys2[(y_type_2 > int(splitter_y_new[i])) &
                                                     (y_type_2 <= y_grenze)]
                             #print(y_type_2_up,x_starting_up,x_ending_up,'didid')
-                            nodes_in = []
+                            nodes_in = set()
                             for ij in range(len(x_starting_up)):
-                                nodes_in = nodes_in + list(range(x_starting_up[ij],
-                                                                 x_ending_up[ij]))
-                            nodes_in = np.unique(nodes_in)
+                                nodes_in.update(range(x_starting_up[ij],
+                                                      x_ending_up[ij]))
                             #print(nodes_in,'nodes_in')
 
-                            if set(nodes_in)==set(range(len(peaks_neg_tot)-1)):
+                            if nodes_in == set(range(len(peaks_neg_tot)-1)):
                                 pass
-                            elif set(nodes_in)==set(range(1, len(peaks_neg_tot)-1)):
+                            elif nodes_in == set(range(1, len(peaks_neg_tot)-1)):
                                 pass
                             else:
                                 #print('burdaydikh')
@@ -1828,17 +1827,16 @@ def return_boxes_of_images_by_order_of_reading_new(
                                     pass
                                 #print('burdaydikh2')
                         elif len(y_diff_main_separator_up)==0:
-                            nodes_in = []
+                            nodes_in = set()
                             for ij in range(len(x_starting_up)):
-                                nodes_in = nodes_in + list(range(x_starting_up[ij],
-                                                                 x_ending_up[ij]))
-                            nodes_in = np.unique(nodes_in)
+                                nodes_in.update(range(x_starting_up[ij],
+                                                      x_ending_up[ij]))
                             #print(nodes_in,'nodes_in2')
                             #print(np.array(range(len(peaks_neg_tot)-1)),'np.array(range(len(peaks_neg_tot)-1))')
 
-                            if set(nodes_in)==set(range(len(peaks_neg_tot)-1)):
+                            if nodes_in == set(range(len(peaks_neg_tot)-1)):
                                 pass
-                            elif set(nodes_in)==set(range(1,len(peaks_neg_tot)-1)):
+                            elif nodes_in == set(range(1,len(peaks_neg_tot)-1)):
                                 pass
                             else:
                                 #print('burdaydikh')
@@ -1874,12 +1872,13 @@ def return_boxes_of_images_by_order_of_reading_new(
                                     range(x_start_without_mother[dj],
                                           x_end_without_mother[dj]))
                             columns_not_covered = list(all_columns - columns_covered_by_mothers)
-                            y_type_2 = np.append(y_type_2, [int(splitter_y_new[i])] * (len(columns_not_covered) + len(x_start_without_mother)))
+                            y_type_2 = np.append(y_type_2, np.ones(len(columns_not_covered) + len(x_start_without_mother),
+                                                                   dtype=int) * splitter_y_new[i])
                             ##y_lines_by_order = np.append(y_lines_by_order, [int(splitter_y_new[i])] * len(columns_not_covered))
                             ##x_start_by_order = np.append(x_start_by_order, [0] * len(columns_not_covered))
                             x_starting = np.append(x_starting, np.array(columns_not_covered, x_starting.dtype))
                             x_starting = np.append(x_starting, x_start_without_mother)
-                            x_ending = np.append(x_ending, np.array(columns_not_covered) + 1)
+                            x_ending = np.append(x_ending, np.array(columns_not_covered, x_ending.dtype) + 1)
                             x_ending = np.append(x_ending, x_end_without_mother)
 
                         ind_args=np.arange(len(y_type_2))
@@ -1914,7 +1913,8 @@ def return_boxes_of_images_by_order_of_reading_new(
                                 range(x_start_without_mother[dj],
                                       x_end_without_mother[dj]))
                         columns_not_covered = list(all_columns - columns_covered_by_mothers)
-                        y_type_2 = np.append(y_type_2, [int(splitter_y_new[i])] * (len(columns_not_covered) + len(x_start_without_mother)))
+                        y_type_2 = np.append(y_type_2, np.ones(len(columns_not_covered) + len(x_start_without_mother),
+                                                               dtype=int) * splitter_y_new[i])
                         ##y_lines_by_order = np.append(y_lines_by_order, [int(splitter_y_new[i])] * len(columns_not_covered))
                         ##x_start_by_order = np.append(x_start_by_order, [0] * len(columns_not_covered))
                         x_starting = np.append(x_starting, np.array(columns_not_covered, x_starting.dtype))
@@ -2094,7 +2094,8 @@ def return_boxes_of_images_by_order_of_reading_new(
                                 range(x_starting[dj], x_ending[dj]))
                     columns_not_covered = list(all_columns - columns_covered_by_lines_covered_more_than_2col)
 
-                    y_type_2 = np.append(y_type_2, [int(splitter_y_new[i])] * (len(columns_not_covered) + 1))
+                    y_type_2 = np.append(y_type_2, np.ones(len(columns_not_covered) + 1,
+                                                           dtype=int) * splitter_y_new[i])
                     ##y_lines_by_order = np.append(y_lines_by_order, [int(splitter_y_new[i])] * len(columns_not_covered))
                     ##x_start_by_order = np.append(x_start_by_order, [0] * len(columns_not_covered))
                     x_starting = np.append(x_starting, np.array(columns_not_covered, x_starting.dtype))
@@ -2107,7 +2108,8 @@ def return_boxes_of_images_by_order_of_reading_new(
                         x_ending = np.append(x_ending, x_ending[0])
                 else:
                     columns_not_covered = list(all_columns)
-                    y_type_2 = np.append(y_type_2, [int(splitter_y_new[i])] * len(columns_not_covered))
+                    y_type_2 = np.append(y_type_2, np.ones(len(columns_not_covered),
+                                                           dtype=int) * splitter_y_new[i])
                     ##y_lines_by_order = np.append(y_lines_by_order, [int(splitter_y_new[i])] * len(columns_not_covered))
                     ##x_start_by_order = np.append(x_start_by_order, [0] * len(columns_not_covered))
                     x_starting = np.append(x_starting, np.array(columns_not_covered, x_starting.dtype))
