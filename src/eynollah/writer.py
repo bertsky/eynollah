@@ -96,8 +96,8 @@ class EynollahXmlWriter():
             found_polygons_marginals_left, found_polygons_marginals_right,
             all_found_textline_polygons_marginals_left, all_found_textline_polygons_marginals_right,
             all_box_coord_marginals_left, all_box_coord_marginals_right,
-            slopes, slopes_marginals_left, slopes_marginals_right,
-            cont_page, polygons_seplines,
+            slope0, slopes, slopes_marginals_left, slopes_marginals_right,
+            num_col_classifier, cont_page, polygons_seplines,
             found_polygons_tables,
             **kwargs):
         return self.build_pagexml_full_layout(
@@ -109,8 +109,8 @@ class EynollahXmlWriter():
             found_polygons_marginals_left, found_polygons_marginals_right,
             all_found_textline_polygons_marginals_left, all_found_textline_polygons_marginals_right,
             all_box_coord_marginals_left, all_box_coord_marginals_right,
-            slopes, [], slopes_marginals_left, slopes_marginals_right,
-            cont_page, polygons_seplines,
+            slope0, slopes, [], slopes_marginals_left, slopes_marginals_right,
+            num_col_classifier, cont_page, polygons_seplines,
             **kwargs)
 
     def build_pagexml_full_layout(
@@ -123,8 +123,8 @@ class EynollahXmlWriter():
             found_polygons_marginals_left,found_polygons_marginals_right,
             all_found_textline_polygons_marginals_left, all_found_textline_polygons_marginals_right,
             all_box_coord_marginals_left, all_box_coord_marginals_right,
-            slopes, slopes_h, slopes_marginals_left, slopes_marginals_right,
-            cont_page, polygons_seplines,
+            slope0, slopes, slopes_h, slopes_marginals_left, slopes_marginals_right,
+            num_col_classifier, cont_page, polygons_seplines,
             ocr_all_textlines=None, ocr_all_textlines_h=None,
             ocr_all_textlines_marginals_left=None, ocr_all_textlines_marginals_right=None,
             ocr_all_textlines_drop=None,
@@ -136,6 +136,9 @@ class EynollahXmlWriter():
         pcgts = self.pcgts if self.pcgts else create_page_xml(self.image_filename, self.height_org, self.width_org)
         page = pcgts.get_Page()
         page.set_Border(BorderType(Coords=CoordsType(points=self.calculate_page_coords(cont_page))))
+        if slope0 is not None:
+            page.set_orientation(-slope0)
+        page.set_custom("col-classifier: %d; " % num_col_classifier)
 
         counter = EynollahIdCounter()
         if len(order_of_texts):

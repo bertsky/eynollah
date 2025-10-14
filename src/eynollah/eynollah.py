@@ -4214,8 +4214,8 @@ class Eynollah:
                 self.get_regions_light_v_extract_only_images(img_res, is_image_enhanced, num_col_classifier)
             pcgts = self.writer.build_pagexml_no_full_layout(
                 [], page_coord, [], [], [], [],
-                polygons_of_images, [], [], [], [], [], [], [], [], [],
-                cont_page, [], [])
+                polygons_of_images, [], [], [], [], [], [], None, [], [], [],
+                num_col_classifier, cont_page, [], [])
             if self.plotter:
                 self.plotter.write_images_into_directory(polygons_of_images, image_page)
                 
@@ -4269,8 +4269,8 @@ class Eynollah:
                 cont_page, page_coord, order_text_new, id_of_texts_tot,
                 all_found_textline_polygons, page_coord, [],
                 [], [], [], [], [], [],
-                slopes, [], [],
-                cont_page, [], [],
+                None, slopes, [], [],
+                num_col_classifier, cont_page, [], [],
                 ocr_all_textlines=ocr_all_textlines,
                 conf_contours_textregion=conf_contours_textregions,
                 skip_layout_reading_order=True)
@@ -4335,8 +4335,8 @@ class Eynollah:
             self.logger.info("No columns detected - generating empty PAGE-XML")
     
             pcgts = self.writer.build_pagexml_no_full_layout(
-                [], page_coord, [], [], [], [], [], [], [], [], [], [], [], [], [], [],
-                cont_page, [], [])
+                [], page_coord, [], [], [], [], [], [], [], [], [], [], [], None, [], [], [],
+                num_col_classifier, cont_page, [], [])
             return pcgts
 
         #print("text region early in %.1fs", time.time() - t0)
@@ -4555,8 +4555,8 @@ class Eynollah:
                     polygons_of_marginals, polygons_of_marginals,
                     empty_marginals, empty_marginals,
                     empty_marginals, empty_marginals,
-                    [], [], [], [],
-                    cont_page, polygons_seplines)
+                    slope_deskew, [], [], [], [],
+                    num_col_classifier, cont_page, polygons_seplines)
             else:
                 pcgts = self.writer.build_pagexml_no_full_layout(
                     [], page_coord, [], [], [], [],
@@ -4564,8 +4564,8 @@ class Eynollah:
                     polygons_of_marginals, polygons_of_marginals,
                     empty_marginals, empty_marginals,
                     empty_marginals, empty_marginals,
-                    [], [], [], 
-                    cont_page, polygons_seplines, contours_tables)
+                    slope_deskew, [], [], [],
+                    num_col_classifier, cont_page, polygons_seplines, contours_tables)
             return pcgts
 
 
@@ -4851,8 +4851,8 @@ class Eynollah:
                 polygons_of_marginals_left, polygons_of_marginals_right,
                 all_found_textline_polygons_marginals_left, all_found_textline_polygons_marginals_right,
                 all_box_coord_marginals_left, all_box_coord_marginals_right,
-                slopes, slopes_h, slopes_marginals_left, slopes_marginals_right,
-                cont_page, polygons_seplines, ocr_all_textlines, ocr_all_textlines_h,
+                slope_deskew, slopes, slopes_h, slopes_marginals_left, slopes_marginals_right,
+                num_col_classifier, cont_page, polygons_seplines, ocr_all_textlines, ocr_all_textlines_h,
                 ocr_all_textlines_marginals_left, ocr_all_textlines_marginals_right,
                 ocr_all_textlines_drop,
                 conf_contours_textregions, conf_contours_textregions_h)
@@ -4863,8 +4863,8 @@ class Eynollah:
                 polygons_of_marginals_left, polygons_of_marginals_right,
                 all_found_textline_polygons_marginals_left, all_found_textline_polygons_marginals_right,
                 all_box_coord_marginals_left, all_box_coord_marginals_right,
-                slopes, slopes_marginals_left, slopes_marginals_right, 
-                cont_page, polygons_seplines, contours_tables,
+                slope_deskew, slopes, slopes_marginals_left, slopes_marginals_right,
+                num_col_classifier, cont_page, polygons_seplines, contours_tables,
                 ocr_all_textlines=ocr_all_textlines,
                 ocr_all_textlines_marginals_left=ocr_all_textlines_marginals_left,
                 ocr_all_textlines_marginals_right=ocr_all_textlines_marginals_right,
