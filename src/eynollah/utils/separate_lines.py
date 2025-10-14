@@ -1599,7 +1599,7 @@ def do_work_of_slopes_new(
         textline_mask_tot_ea=None,
         image_page=None,
         slope_deskew=0.0,
-        logger=None, MAX_SLOPE=999, KERNEL=None, plotter=None
+        logger=None, KERNEL=None, plotter=None
 ):
     if KERNEL is None:
         KERNEL = np.ones((5, 5), np.uint8)
@@ -1623,17 +1623,10 @@ def do_work_of_slopes_new(
         all_text_region_raw = textline_mask_tot_ea[y: y + h, x: x + w]
         cnt_clean_rot = textline_contours_postprocessing(all_text_region_raw, slope_for_all, contour_par, box_text, 0)
     else:
-        try:
-            slope_for_all = return_deskew_slop(img_int_p, 1.0, logger=logger, plotter=plotter)
-            # rs: ignoring per-region results iff they are in that range makes no sense to me
-            # if abs(slope_for_all) <= 0.5:
-            #     slope_for_all = slope_deskew
-        except:
-            logger.exception("cannot determine angle of contours")
-            slope_for_all = MAX_SLOPE
-
-        if slope_for_all == MAX_SLOPE:
-            slope_for_all = slope_deskew
+        slope_for_all = return_deskew_slop(img_int_p, 1.0, logger=logger, plotter=plotter)
+        # rs: ignoring per-region results iff they are in that range makes no sense to me
+        # if abs(slope_for_all) <= 0.5:
+        #     slope_for_all = slope_deskew
         slope = slope_for_all
         mask_only_con_region = np.zeros(textline_mask_tot_ea.shape)
         mask_only_con_region = cv2.fillPoly(mask_only_con_region, pts=[contour_par], color=(1, 1, 1))
@@ -1652,7 +1645,7 @@ def do_work_of_slopes_new_curved(
         box_text, contour_par,
         textline_mask_tot_ea=None, image_page=None,
         num_col=1, scale_par=1.0, slope_deskew=0.0,
-        logger=None, MAX_SLOPE=999, KERNEL=None, plotter=None
+        logger=None, KERNEL=None, plotter=None
 ):
     if KERNEL is None:
         KERNEL = np.ones((5, 5), np.uint8)
@@ -1671,17 +1664,10 @@ def do_work_of_slopes_new_curved(
         slope = 0
         slope_for_all = slope_deskew
     else:
-        try:
-            slope_for_all = return_deskew_slop(img_int_p, 1.0, logger=logger, plotter=plotter)
-            # rs: ignoring per-region results iff they are in that range makes no sense to me
-            # if abs(slope_for_all) < 0.5:
-            #     slope_for_all = slope_deskew
-        except:
-            logger.exception("cannot determine angle of contours")
-            slope_for_all = MAX_SLOPE
-
-        if slope_for_all == MAX_SLOPE:
-            slope_for_all = slope_deskew
+        slope_for_all = return_deskew_slop(img_int_p, 1.0, logger=logger, plotter=plotter)
+        # rs: ignoring per-region results iff they are in that range makes no sense to me
+        # if abs(slope_for_all) < 0.5:
+        #     slope_for_all = slope_deskew
         slope = slope_for_all
 
     crop_coor = box2rect(box_text)

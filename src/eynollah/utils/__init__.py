@@ -336,23 +336,18 @@ def otsu_copy_binary(img):
     return img_r
 
 def find_features_of_lines(contours_main):
-    areas_main = np.array([cv2.contourArea(contours_main[j]) for j in range(len(contours_main))])
-    M_main = [cv2.moments(contours_main[j]) for j in range(len(contours_main))]
-    cx_main = [(M_main[j]["m10"] / (M_main[j]["m00"] + 1e-32)) for j in range(len(M_main))]
-    cy_main = [(M_main[j]["m01"] / (M_main[j]["m00"] + 1e-32)) for j in range(len(M_main))]
-    x_min_main = np.array([np.min(contours_main[j][:, 0, 0]) for j in range(len(contours_main))])
-    x_max_main = np.array([np.max(contours_main[j][:, 0, 0]) for j in range(len(contours_main))])
-
-    y_min_main = np.array([np.min(contours_main[j][:, 0, 1]) for j in range(len(contours_main))])
-    y_max_main = np.array([np.max(contours_main[j][:, 0, 1]) for j in range(len(contours_main))])
+    (cx_main, cy_main,
+     x_min_main, x_max_main,
+     y_min_main, y_max_main,
+     _) = find_new_features_of_contours(contours_main)
 
     slope_lines = []
-    for kk in range(len(contours_main)):
-        [vx, vy, x, y] = cv2.fitLine(contours_main[kk], cv2.DIST_L2, 0, 0.01, 0.01)
+    for cnt in contours_main:
+        [vx, vy, x, y] = cv2.fitLine(cnt, cv2.DIST_L2, 0, 0.01, 0.01)
         slope_lines.append(((vy / vx) / np.pi * 180)[0])
 
-    slope_lines_org = slope_lines
-    slope_lines = np.array(slope_lines)
+    slope_lines_org = np.array(slope_lines)
+    slope_lines = slope_lines_org.copy()
     slope_lines[(slope_lines < 10) & (slope_lines > -10)] = 0
 
     slope_lines[(slope_lines < -200) | (slope_lines > 200)] = 1
@@ -364,7 +359,7 @@ def find_features_of_lines(contours_main):
             x_min_main,
             x_max_main,
             np.array(cy_main),
-            np.array(slope_lines_org),
+            slope_lines_org,
             y_min_main,
             y_max_main,
             np.array(cx_main))

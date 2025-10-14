@@ -147,7 +147,6 @@ MIN_AREA_REGION = 0.000001
 SLOPE_THRESHOLD = 0.13
 RATIO_OF_TWO_MODEL_THRESHOLD = 95.50 #98.45:
 DPI_THRESHOLD = 298
-MAX_SLOPE = 999
 KERNEL = np.ones((5, 5), np.uint8)
 
 projection_dim = 64
@@ -1930,7 +1929,6 @@ class Eynollah:
                                                     textline_mask_tot_ea=textline_mask_tot_shared,
                                                     image_page=image_page_shared,
                                                     slope_deskew=slope_deskew,
-                                                    MAX_SLOPE=MAX_SLOPE,
                                                     KERNEL=KERNEL,
                                                     logger=self.logger,
                                                     plotter=self.plotter,),
@@ -1953,7 +1951,6 @@ class Eynollah:
                                             num_col=num_col,
                                             scale_par=scale_par,
                                             slope_deskew=slope_deskew,
-                                            MAX_SLOPE=MAX_SLOPE,
                                             KERNEL=KERNEL,
                                             logger=self.logger,
                                             plotter=self.plotter,),
