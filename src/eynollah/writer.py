@@ -183,7 +183,7 @@ class EynollahXmlWriter():
 
         for mm, region_contour in enumerate(found_polygons_marginals_left):
             marginal = TextRegionType(
-                id=counter.next_region_id, type_='marginalia',
+                id=counter.next_region_id, type_='marginalia', custom='#margi_left',
                 Coords=CoordsType(points=self.calculate_polygon_coords(region_contour, page_coord))
             )
             page.add_TextRegion(marginal)
@@ -195,7 +195,7 @@ class EynollahXmlWriter():
 
         for mm, region_contour in enumerate(found_polygons_marginals_right):
             marginal = TextRegionType(
-                id=counter.next_region_id, type_='marginalia',
+                id=counter.next_region_id, type_='marginalia', custom='#margi_right',
                 Coords=CoordsType(points=self.calculate_polygon_coords(region_contour, page_coord))
             )
             page.add_TextRegion(marginal)
