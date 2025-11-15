@@ -5,6 +5,23 @@ Versioned according to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+## [0.6.0] - 2025-10-17
+
+Added:
+
+  * `eynollah-training` CLI and docs for training the models, #187, #193, https://github.com/qurator-spk/sbb_pixelwise_segmentation/tree/unifying-training-models
+
+Fixed:
+
+  * `join_polygons` always returning Polygon, not MultiPolygon, #203
+
+## [0.6.0rc2] - 2025-10-14
+
+Fixed:
+
+  * Prevent OOM GPU error by avoiding loading the `region_fl` model, #199
+  * XML output: encoding should be `utf-8`, not `utf8`, #196, #197
+
 ## [0.6.0rc1] - 2025-10-10
 
 Fixed:
@@ -21,8 +38,7 @@ Fixed:
  * Dockerfile: fix CUDA installation (cuDNN contested between Torch and TF due to extra OCR)
  * OCR: re-instate missing methods and fix `utils_ocr` function calls
  * mbreorder/enhancement CLIs: missing imports
- * :fire: writer: `SeparatorRegion` needs `SeparatorRegionType` (not `ImageRegionType`)
-f458e3e
+ * :fire: writer: `SeparatorRegion` needs `SeparatorRegionType` (not `ImageRegionType`), f458e3e
  * tests: switch from `pytest-subtests` to `parametrize` so we can use `pytest-isolate`
    (so CUDA memory gets freed between tests if running on GPU)
 
@@ -118,7 +134,7 @@ Merged PRs:
 Fixed:
 
  * allow empty imports for optional dependencies
- * avoid Numpy warnings (empty slices etc)
+ * avoid Numpy warnings (empty slices etc.)
  * remove deprecated Numpy types
  * binarization CLI: make `dir_in` usable again
 
@@ -291,6 +307,8 @@ Fixed:
 Initial release
 
 <!-- link-labels -->
+[0.6.0]: ../../compare/v0.6.0...v0.6.0rc2
+[0.6.0rc2]: ../../compare/v0.6.0rc2...v0.6.0rc1
 [0.6.0rc1]: ../../compare/v0.6.0rc1...v0.5.0
 [0.5.0]: ../../compare/v0.5.0...v0.4.0
 [0.4.0]: ../../compare/v0.4.0...v0.3.1

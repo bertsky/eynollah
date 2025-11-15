@@ -4364,9 +4364,9 @@ class Eynollah:
                 textline_mask_tot_ea_org[img_revised_tab==drop_label_in_full_layout] = 0
 
 
-        text_only = ((img_revised_tab[:, :] == 1)) * 1
+        text_only = (img_revised_tab[:, :] == 1) * 1
         if np.abs(slope_deskew) >= SLOPE_THRESHOLD:
-            text_only_d = ((text_regions_p_d[:, :] == 1)) * 1
+            text_only_d = (text_regions_p_d[:, :] == 1) * 1
 
         #print("text region early 2 in %.1fs", time.time() - t0)
         ###min_con_area = 0.000005
@@ -5259,7 +5259,7 @@ class Eynollah_ocr:
                     ##unicode_textpage.text = tot_page_text
                 
                 ET.register_namespace("",name_space)
-                tree1.write(out_file_ocr,xml_declaration=True,method='xml',encoding="utf8",default_namespace=None)
+                tree1.write(out_file_ocr,xml_declaration=True,method='xml',encoding="utf-8",default_namespace=None)
         else:
             ###max_len = 280#512#280#512
             ###padding_token = 1500#299#1500#299
@@ -5808,5 +5808,5 @@ class Eynollah_ocr:
                         ##unicode_textpage.text = tot_page_text
                     
                     ET.register_namespace("",name_space)
-                    tree1.write(out_file_ocr,xml_declaration=True,method='xml',encoding="utf8",default_namespace=None)
+                    tree1.write(out_file_ocr,xml_declaration=True,method='xml',encoding="utf-8",default_namespace=None)
                     #print("Job done in %.1fs", time.time() - t0)
