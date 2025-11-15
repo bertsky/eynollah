@@ -1900,7 +1900,7 @@ class Eynollah:
                 slopes)
 
     def get_slopes_and_deskew_new_light(self, contours_par, textline_mask_tot, image_page, boxes, slope_deskew):
-        if not len(contours):
+        if not len(contours_par):
             return [], [], []
         self.logger.debug("enter get_slopes_and_deskew_new_light")
         with share_ndarray(textline_mask_tot) as textline_mask_tot_shared:
