@@ -1518,18 +1518,15 @@ def return_deskew_slop(img_patch_org, sigma_des,n_tot_angles=100,
         plotter.save_plot_of_textline_density(img_patch_org)
 
     img_h, img_w = img_patch_org.shape[:2]
-    max_shape = int(np.max(img_patch_org.shape) * 1.1)
-    marg_y = (max_shape - img_h) // 2
-    marg_x = (max_shape - img_w) // 2
-    img_med = np.median(img_patch_org, axis=(0, 1))
-    img_resized = cv2.copyMakeBorder(src=img_patch_org,
-                                     top=marg_y,
-                                     bottom=marg_y,
-                                     left=marg_x,
-                                     right=marg_x,
-                                     borderType=cv2.BORDER_CONSTANT,
-                                     value=img_med,
-    )
+    # we need a square image for skew estimation;
+    # padding would necessarily introduce artificial edges
+    # which would in turn interfere with deskewing
+    # so better crop from the middle (at the risk of loosing some detail)
+    max_shape = min(img_h, img_w)
+    marg_y = (img_h - max_shape) // 2
+    marg_x = (img_w - max_shape) // 2
+    img_resized = img_patch_org[marg_y: -marg_y if marg_y else None,
+                                marg_x: -marg_x if marg_x else None]
     if main_page and img_patch_org.shape[1] > img_patch_org.shape[0]:
         #angles = np.array([-45, -22.5, 0, 22.5, 45, 90,])
         #angles = np.append(np.linspace(-45, 45, n_tot_angles), 90)

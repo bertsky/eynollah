@@ -101,14 +101,6 @@ def _get_angle_radial_projection(
     if a_max == 0:
         if li[1] == li[0]:
             return 0.0, -1
-        a_nxt = 1
-    elif a_max + 1 >= len(tr):
-        a_nxt = a_max - 1
-    elif li[a_max - 1] > li[a_max + 1]:
-        a_nxt = a_max - 1
-    else:
-        a_nxt = a_max + 1
-    #d = li[a_max] - li[a_nxt]
     #d = li[a_max] - li[a_min]
     d = li[a_max]
     a = tr[a_max] / np.pi * 180
