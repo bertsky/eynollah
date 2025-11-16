@@ -1610,9 +1610,9 @@ def do_work_of_slopes_new(
     x, y, w, h = box_text
     crop_coor = box2rect(box_text)
     mask_textline = np.zeros(textline_mask_tot_ea.shape)
-    mask_textline = cv2.fillPoly(mask_textline, pts=[contour], color=(1,1,1))
+    mask_textline = cv2.fillPoly(mask_textline, pts=[contour], color=1)
     #all_text_region_raw = textline_mask_tot_ea * mask_textline
-    all_text_region_raw = image_page * mask_textline
+    all_text_region_raw = image_page * mask_textline[:, :, np.newaxis]
     all_text_region_raw = all_text_region_raw[y: y + h, x: x + w].astype(np.uint8)
     img_int_p = all_text_region_raw[:,:]
     #img_int_p = cv2.erode(img_int_p, KERNEL, iterations=2)
