@@ -2,19 +2,25 @@
 Tool to load model and binarize a given image.
 """
 
-from glob import glob
+# pyright: reportIndexIssue=false
+# pyright: reportCallIssue=false
+# pyright: reportArgumentType=false
+# pyright: reportPossiblyUnboundVariable=false
+
 import os
 import logging
-from PIL import Image
+from pathlib import Path
+from typing import Dict, Optional
 
 import numpy as np
 import cv2
 from ocrd_utils import tf_disable_interactive_logs
 
+from eynollah.model_zoo import EynollahModelZoo
+from eynollah.model_zoo.types import AnyModel
 os.environ['TF_USE_LEGACY_KERAS'] = '1' # avoid Keras 3 after TF 2.15
 tf_disable_interactive_logs()
 import tensorflow as tf
-from tensorflow.keras.models import load_model
 
 from .utils import is_image_filename
 
@@ -23,30 +29,31 @@ def resize_image(img_in, input_height, input_width):
 
 class SbbBinarizer:
 
-    def __init__(self, model_dir, logger=None):
-        self.model_dir = model_dir
-        self.logger = logger if logger else logging.getLogger('SbbBinarizer')
-
+    def __init__(
+        self,
+        *,
+        model_zoo: EynollahModelZoo,
+        mode: str,
+        logger: Optional[logging.Logger] = None,
+    ):
+        self.logger = logger if logger else logging.getLogger('eynollah.binarization')
+        self.model_zoo = model_zoo
+        self.models = self.setup_models(mode)
         try:
             for device in tf.config.list_physical_devices('GPU'):
                 tf.config.experimental.set_memory_growth(device, True)
         except:
             self.logger.warning("no GPU device available")
 
-        self.model_files = glob(self.model_dir + "/*/", recursive=True)
-        self.models = []
-        for model_file in self.model_files:
-            self.models.append(self.load_model(model_file))
+    def setup_models(self, mode: str) -> Dict[Path, AnyModel]:
+        return {
+            self.model_zoo.model_path(v): self.model_zoo.load_model(v)
+            for v in (['binarization'] if mode == 'single' else [f'binarization_multi_{i}' for i in range(1, 5)])
+        }
 
-    def load_model(self, model_name):
-        model = load_model(os.path.join(self.model_dir, model_name), compile=False)
+    def predict(self, model, img, use_patches, n_batch_inference=5):
         model_height = model.layers[len(model.layers)-1].output_shape[1]
         model_width = model.layers[len(model.layers)-1].output_shape[2]
-        n_classes = model.layers[len(model.layers)-1].output_shape[3]
-        return model, model_height, model_width, n_classes
-
-    def predict(self, model_in, img, use_patches, n_batch_inference=5):
-        model, model_height, model_width, n_classes = model_in
         
         img_org_h = img.shape[0]
         img_org_w = img.shape[1]
@@ -305,31 +312,45 @@ class SbbBinarizer:
             prediction_true = prediction_true.astype(np.uint8)
         return prediction_true[:,:,0]
 
-    def run(self, image_path=None, output=None, dir_in=None, use_patches=False, overwrite=False):
-        if dir_in:
-            ls_imgs = [(os.path.join(dir_in, image_filename),
-                        os.path.join(output, os.path.splitext(image_filename)[0] + '.png'))
-                       for image_filename in filter(is_image_filename,
-                                                    os.listdir(dir_in))]
+    def run(self, image=None, image_path=None, output=None, use_patches=False, dir_in=None, overwrite=False):
+        if not dir_in:
+            if (image is None) == (image_path is None):
+                raise ValueError("Must pass either a opencv2 image or an image_path")
+            if image_path is not None:
+                image = cv2.imread(image_path)
+            img_last = run_single(image, use_patches)
+            if output:
+                if os.path.exists(output):
+                    if overwrite:
+                        self.logger.warning("will overwrite existing output file '%s'", output)
+                    else:
+                        self.logger.warning("output file already exists '%s'", output)
+                        return img_last
+                self.logger.info('Writing binarized image to %s', output)
+                cv2.imwrite(output, img_last)
+            return img_last
         else:
-            ls_imgs = [(image_path, output)]
-
-        for input_path, output_path in ls_imgs:
-            print(input_path, 'image_name')
-            if os.path.exists(output_path):
-                if overwrite:
-                    self.logger.warning("will overwrite existing output file '%s'", output_path)
-                else:
-                    self.logger.warning("will skip input for existing output file '%s'", output_path)
-            image = cv2.imread(input_path)
-            result = self.run_single(image, use_patches)
-            cv2.imwrite(output_path, result)
+            ls_imgs = list(filter(is_image_filename, os.listdir(dir_in)))
+            self.logger.info("Found %d image files to binarize in %s", len(ls_imgs), dir_in)
+            for i, image_path in enumerate(ls_imgs):
+                image_stem = os.path.splitext(image_path)[0]
+                output_path = os.path.join(output, image_stem + '.png')
+                if os.path.exists(output_path):
+                    if overwrite:
+                        self.logger.warning("will overwrite existing output file '%s'", output_path)
+                    else:
+                        self.logger.warning("will skip input for existing output file '%s'", output_path)
+                        continue
+                self.logger.info('Binarizing [%3d/%d] %s', i + 1, len(ls_imgs), image_path)
+                image = cv2.imread(os.path.join(dir_in, image_path))
+                img_last = run_single(image, use_patches)
+                self.logger.info('Writing binarized image to %s', output_path)
+                cv2.imwrite(output_path, img_last)
 
     def run_single(self, image: np.ndarray, use_patches=False):
         img_last = 0
-        for n, (model, model_file) in enumerate(zip(self.models, self.model_files)):
-            self.logger.info('Predicting with model %s [%s/%s]' % (model_file, n + 1, len(self.model_files)))
-
+        for n, (model_file, model) in enumerate(self.models.items()):
+            self.logger.info('Predicting %s with model %s [%s/%s]', image_path if image_path else '[image]', model_file, n + 1, len(self.models.keys()))
             res = self.predict(model, image, use_patches)
 
             img_fin = np.zeros((res.shape[0], res.shape[1], 3))
