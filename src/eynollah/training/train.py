@@ -3,6 +3,7 @@ import sys
 import io
 import json
 import click
+from typing import Optional
 
 from tqdm import tqdm
 import requests
@@ -397,7 +398,7 @@ def run(_config,
         f1_threshold_classification=None,
         classification_classes_name=None,
         ## if task=cnn-rnn-ocr
-        characters_txt_file=None,
+        characters_txt_file: Optional[str]=None,
         color_padding_rotation=False,
         thetha_padd=None,
         bin_deg=False,
@@ -697,6 +698,89 @@ def run(_config,
             epochs=n_epochs,
             callbacks=callbacks,
             initial_epoch=index_start)
+
+    elif task=="transformer-ocr":
+        import torch
+        from torch.utils.data import Dataset as TorchDataset
+        from transformers import TrOCRProcessor, VisionEncoderDecoderModel, Seq2SeqTrainer, Seq2SeqTrainingArguments, default_data_collator
+        dir_img, dir_lab = get_dirs_or_files(dir_train)
+
+        if continue_training:
+            model = VisionEncoderDecoderModel.from_pretrained(dir_of_start_model)
+        else:
+            model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-printed")
+            
+        processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-printed")
+        
+        
+        # Create a DataLoader
+        class TransformerOCRTorchDataset(TorchDataset):
+            """
+            Wraps preprocess_imgs in a format consumable by torch
+            """
+            def __init__(self, config, dir_img, dir_lab, char_to_num):
+                self.samples = list(
+                    preprocess_imgs(
+                        config,
+                        dir_img,
+                        dir_lab,
+                        char_to_num=char_to_num
+                    )
+                )
+
+            def __len__(self):
+                return len(self.samples)
+
+            def __getitem__(self, idx):
+                image, label = self.samples[idx]
+
+                return {
+                    "image": torch.as_tensor(image, dtype=torch.float32),
+                    "label": torch.as_tensor(label, dtype=torch.long),
+                }
+        assert characters_txt_file
+        with open(characters_txt_file, 'r') as char_txt_f:
+            characters = json.load(char_txt_f)
+        char_to_num = StringLookup(vocabulary=list(characters), mask_token=None)
+        dataset = TransformerOCRTorchDataset(_config, dir_img, dir_lab, char_to_num)
+        data_loader = torch.utils.data.DataLoader(dataset, batch_size=1)
+        train_dataset = data_loader.dataset
+            
+        # set special tokens used for creating the decoder_input_ids from the labels
+        model.config.decoder_start_token_id = processor.tokenizer.cls_token_id
+        model.config.pad_token_id = processor.tokenizer.pad_token_id
+        # make sure vocab size is set correctly
+        model.config.vocab_size = model.config.decoder.vocab_size
+
+        # set beam search parameters
+        model.config.eos_token_id = processor.tokenizer.sep_token_id
+        model.config.max_length = max_len
+        model.config.early_stopping = True
+        model.config.no_repeat_ngram_size = 3
+        model.config.length_penalty = 2.0
+        model.config.num_beams = 4
+        
+        
+        training_args = Seq2SeqTrainingArguments(
+            predict_with_generate=True,
+            num_train_epochs=n_epochs,
+            learning_rate=learning_rate,
+            per_device_train_batch_size=n_batch,
+            fp16=True, 
+            output_dir=dir_output,
+            logging_steps=2,
+            save_steps=save_interval,
+        )
+        
+        # instantiate trainer
+        trainer = Seq2SeqTrainer(
+            model=model,
+            tokenizer=processor.feature_extractor,
+            args=training_args,
+            train_dataset=train_dataset,
+            data_collator=default_data_collator,
+        )
+        trainer.train()
 
     elif task=='classification':
         if continue_training:
