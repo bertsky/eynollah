@@ -825,7 +825,7 @@ def run(_config,
             usable_checkpoints = [os.path.join(dir_output, 'model_{epoch:02d}'.format(epoch=epoch + 1))
                                   for epoch in usable_checkpoints]
             ens_path = os.path.join(dir_output, 'model_ens_avg')
-            run_ensembling(usable_checkpoints, ens_path)
+            run_ensembling(usable_checkpoints, ens_path, framework='tensorflow')
             _log.info("ensemble model saved under '%s'", ens_path)
 
     elif task=='reading_order':
