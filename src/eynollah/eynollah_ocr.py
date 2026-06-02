@@ -19,27 +19,29 @@ from ocrd_utils import polygon_from_points, xywh_from_polygon
 
 from .eynollah import Eynollah
 from .model_zoo import EynollahModelZoo
-from .utils import is_image_filename
+from .utils import (
+    is_image_filename,
+    batched,
+    pairwise,
+)
 from .utils.font import get_font
 from .utils.xml import etree_namespace_for_element_tag
 from .utils.resize import resize_image
 from .utils.utils_ocr import (
     break_curved_line_into_small_pieces_and_then_merge,
-    decode_batch_predictions,
     fit_text_single_line,
     get_contours_and_bounding_boxes,
     get_orientation_moments,
     preprocess_and_resize_image_for_ocrcnn_model,
     return_textlines_split_if_needed,
     rotate_image_with_padding,
-    batched,
 )
 
 # TODO: refine typing
 @dataclass
 class EynollahOcrResult:
     extracted_texts_merged: List
-    extracted_conf_value_merged: Optional[List]
+    extracted_confs_merged: Optional[List]
     cropped_lines_region_indexer: List
     total_bb_coordinates:List
 
@@ -73,10 +75,8 @@ class Eynollah_ocr(Eynollah):
                                        device=device)
         else:
             self.model_zoo.load_models('ocr',
-                                       'num_to_char',
-                                       'characters',
+                                       'binarization',
                                        device=device)
-            self.end_character = len(self.model_zoo.get('characters')) + 2
 
     @property
     def device(self):
@@ -95,8 +95,6 @@ class Eynollah_ocr(Eynollah):
         cropped_lines = []
         cropped_lines_region_indexer = []
         cropped_lines_meging_indexing = []
-        extracted_texts = []
-        extracted_confs = []
 
         for n_region, region in enumerate(page_tree.getroot().iter('{%s}TextRegion' % page_ns)):
             for n_line, line in enumerate(region.iter('{%s}TextLine' % page_ns)):
@@ -139,7 +137,8 @@ class Eynollah_ocr(Eynollah):
                         cropped_lines.append(img_crop)
                         cropped_lines_meging_indexing.append(0)
 
-
+        extracted_texts = []
+        extracted_confs = []
         self.logger.debug("processing %d lines for %d regions",
                           len(cropped_lines), len(set(cropped_lines_region_indexer)))
         for imgs in batched(cropped_lines, self.b_s):
@@ -157,6 +156,10 @@ class Eynollah_ocr(Eynollah):
                 conf = output.sequences_scores.exp().clamp(0.0, 1.0).tolist()
             else:
                 conf = [1.0] * len(output.sequences)
+            if conf < self.min_conf_value_of_textline_text:
+                extracted_confs.extend(0)
+                extracted_texts.extend("")
+                continue
             text = self.model_zoo.get('trocr_processor').batch_decode(
                 output.sequences,
                 skip_special_tokens=True,
@@ -179,7 +182,7 @@ class Eynollah_ocr(Eynollah):
 
         return EynollahOcrResult(
             extracted_texts_merged=extracted_texts_merged,
-            extracted_conf_value_merged=extracted_confs_merged,
+            extracted_confs_merged=extracted_confs_merged,
             cropped_lines_region_indexer=cropped_lines_region_indexer,
             total_bb_coordinates=total_bb_coordinates,
         )
@@ -196,362 +199,163 @@ class Eynollah_ocr(Eynollah):
     ) -> EynollahOcrResult:
         
         total_bb_coordinates = []
-
-        cropped_lines = []
-        img_crop_bin = None
-        imgs_bin = None
-        imgs_bin_ver_flipped = None
+        cropped_lines_rgb = []
         cropped_lines_bin = []
         cropped_lines_ver_index = []
         cropped_lines_region_indexer = []
         cropped_lines_meging_indexing = []
-        
-        indexer_text_region = 0
-        for nn in page_tree.getroot().iter(f'{{{page_ns}}}TextRegion'):
-            try:
-                type_textregion = nn.attrib['type']
-            except:
-                type_textregion = 'paragraph'
-            for child_textregion in nn:
-                if child_textregion.tag.endswith("TextLine"):
-                    for child_textlines in child_textregion:
-                        if child_textlines.tag.endswith("Coords"):
-                            cropped_lines_region_indexer.append(indexer_text_region)
-                            p_h=child_textlines.attrib['points'].split(' ')
-                            textline_coords =  np.array( [ [int(x.split(',')[0]),
-                                                            int(x.split(',')[1]) ]
-                                                        for x in p_h] )
-                            
-                            x,y,w,h = cv2.boundingRect(textline_coords)
-                            
-                            angle_radians = math.atan2(h, w)
-                            # Convert to degrees
-                            angle_degrees = math.degrees(angle_radians)
-                            if type_textregion=='drop-capital':
-                                angle_degrees = 0
-                                
-                            total_bb_coordinates.append([x,y,w,h])
-                            
-                            w_scaled = w *  image_height/float(h)
-                            
-                            img_poly_on_img = np.copy(img)
-                            if img_bin:
-                                img_poly_on_img_bin = np.copy(img_bin)
-                                img_crop_bin = img_poly_on_img_bin[y:y+h, x:x+w, :]
-                            
-                            mask_poly = np.zeros(img.shape)
-                            mask_poly = cv2.fillPoly(mask_poly, pts=[textline_coords], color=(1, 1, 1))
-                            
-                            
-                            mask_poly = mask_poly[y:y+h, x:x+w, :]
-                            img_crop = img_poly_on_img[y:y+h, x:x+w, :]
-                            
-                            # print(file_name, angle_degrees, w*h,
-                            #       mask_poly[:,:,0].sum(),
-                            #       mask_poly[:,:,0].sum() /float(w*h) ,
-                            #       'didi')
-                            
-                            if angle_degrees > 3:
-                                better_des_slope = get_orientation_moments(textline_coords)
-                                
-                                img_crop = rotate_image_with_padding(img_crop, better_des_slope)
-                                if img_bin:
-                                    img_crop_bin = rotate_image_with_padding(img_crop_bin, better_des_slope)
-                                    
-                                mask_poly = rotate_image_with_padding(mask_poly, better_des_slope)
-                                mask_poly = mask_poly.astype('uint8')
-                                
-                                #new bounding box
-                                x_n, y_n, w_n, h_n = get_contours_and_bounding_boxes(mask_poly[:,:,0])
-                                
-                                mask_poly = mask_poly[y_n:y_n+h_n, x_n:x_n+w_n, :]
-                                img_crop = img_crop[y_n:y_n+h_n, x_n:x_n+w_n, :]
-                                    
-                                if not self.do_not_mask_with_textline_contour:
-                                    img_crop[mask_poly==0] = 255
-                                if img_bin:
-                                    img_crop_bin = img_crop_bin[y_n:y_n+h_n, x_n:x_n+w_n, :]
-                                    if not self.do_not_mask_with_textline_contour:
-                                        img_crop_bin[mask_poly==0] = 255
-                                
-                                if mask_poly[:,:,0].sum() /float(w_n*h_n) < 0.50 and w_scaled > 90:
-                                    if img_bin:
-                                        img_crop, img_crop_bin = \
-                                            break_curved_line_into_small_pieces_and_then_merge(
-                                                img_crop, mask_poly, img_crop_bin)
-                                    else:
-                                        img_crop, _ = \
-                                            break_curved_line_into_small_pieces_and_then_merge(
-                                                img_crop, mask_poly)
 
-                            else:
-                                better_des_slope = 0
-                                if not self.do_not_mask_with_textline_contour:
-                                    img_crop[mask_poly==0] = 255
-                                if img_bin:
-                                    if not self.do_not_mask_with_textline_contour:
-                                        img_crop_bin[mask_poly==0] = 255
-                                if type_textregion=='drop-capital':
-                                    pass
-                                else:
-                                    if mask_poly[:,:,0].sum() /float(w*h) < 0.50 and w_scaled > 90:
-                                        if img_bin:
-                                            img_crop, img_crop_bin = \
-                                                break_curved_line_into_small_pieces_and_then_merge(
-                                                    img_crop, mask_poly, img_crop_bin)
-                                        else:
-                                            img_crop, _ = \
-                                                break_curved_line_into_small_pieces_and_then_merge(
-                                                    img_crop, mask_poly)
-                            
-                            if w_scaled < 750:#1.5*image_width:
-                                img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                    img_crop, image_height, image_width)
-                                cropped_lines.append(img_fin)
-                                if abs(better_des_slope) > 45:
-                                    cropped_lines_ver_index.append(1)
-                                else:
-                                    cropped_lines_ver_index.append(0)
-                                    
-                                cropped_lines_meging_indexing.append(0)
-                                if img_bin:
-                                    img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                        img_crop_bin, image_height, image_width)
-                                    cropped_lines_bin.append(img_fin)
-                            else:
-                                splited_images, splited_images_bin = return_textlines_split_if_needed(
-                                    img_crop, img_crop_bin if img_bin else None)
-                                if splited_images:
-                                    img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                        splited_images[0], image_height, image_width)
-                                    cropped_lines.append(img_fin)
-                                    cropped_lines_meging_indexing.append(1)
-                                    
-                                    if abs(better_des_slope) > 45:
-                                        cropped_lines_ver_index.append(1)
-                                    else:
-                                        cropped_lines_ver_index.append(0)
-                                    
-                                    img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                        splited_images[1], image_height, image_width)
-                                    
-                                    cropped_lines.append(img_fin)
-                                    cropped_lines_meging_indexing.append(-1)
-                                    
-                                    if abs(better_des_slope) > 45:
-                                        cropped_lines_ver_index.append(1)
-                                    else:
-                                        cropped_lines_ver_index.append(0)
-                                    
-                                    if img_bin:
-                                        img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                            splited_images_bin[0], image_height, image_width)
-                                        cropped_lines_bin.append(img_fin)
-                                        img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                            splited_images_bin[1], image_height, image_width)
-                                        cropped_lines_bin.append(img_fin)
-                                        
-                                else:
-                                    img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                        img_crop, image_height, image_width)
-                                    cropped_lines.append(img_fin)
-                                    cropped_lines_meging_indexing.append(0)
-                                    
-                                    if abs(better_des_slope) > 45:
-                                        cropped_lines_ver_index.append(1)
-                                    else:
-                                        cropped_lines_ver_index.append(0)
-                                    
-                                    if img_bin:
-                                        img_fin = preprocess_and_resize_image_for_ocrcnn_model(
-                                            img_crop_bin, image_height, image_width)
-                                        cropped_lines_bin.append(img_fin)
-                            
+        img_rgb = img # cosmetic
+        if img_bin is None:
+            # run ad-hoc binarization
+            self.logger.info("running binarization for ensemble input")
+            img_bin = self.do_prediction(True, img, self.model_zoo.get("binarization"),
+                                         n_batch_inference=5)
+            img_bin = np.repeat(img_bin[:, :, np.newaxis], 3, axis=2)
+            img_bin = 255 * (img_bin == 0).astype(np.uint8)
 
-            indexer_text_region = indexer_text_region +1
-            
+        for n_region, region in enumerate(page_tree.getroot().iter('{%s}TextRegion' % page_ns)):
+            type_textregion = region.attrib.get('type', 'paragraph')
+            for n_line, line in enumerate(region.iter('{%s}TextLine' % page_ns)):
+                cropped_lines_region_indexer.append(n_region)
+
+                coords = line.find('{%s}Coords' % page_ns)
+                if coords is None:
+                    self.logger.warning("region '%s' line '%s' has no Coords", region.attrib['id'], line.attrib['id'])
+                    continue
+                poly = np.array(polygon_from_points(coords.attrib['points'])).astype(int)
+                cont = poly[:, np.newaxis]
+                xywh = xywh_from_polygon(poly)
+                x, y, w, h = xywh['x'], xywh['y'], xywh['w'], xywh['h']
+                            
+                angle_radians = math.atan2(h, w)
+                angle_degrees = math.degrees(angle_radians)
+                if type_textregion=='drop-capital':
+                    angle_degrees = 0
+
+                total_bb_coordinates.append([x, y, w, h])
+                            
+                w_scaled = w * image_height / float(h)
+
+                img_crop_rgb = img_rgb[y: y + h, x: x + w]
+                img_crop_bin = img_bin[y: y + h, x: x + w]
+
+                mask_poly = np.zeros(img_crop_rgb.shape[:2], dtype=np.uint8)
+                mask_poly = cv2.fillPoly(mask_poly, pts=[cont - [x, y]], color=1)
+                            
+                if angle_degrees > 3:
+                    better_des_slope = get_orientation_moments(cont)
+                    img_crop_rgb = rotate_image_with_padding(img_crop_rgb, better_des_slope)
+                    img_crop_bin = rotate_image_with_padding(img_crop_bin, better_des_slope)
+                    mask_poly = rotate_image_with_padding(mask_poly, better_des_slope)
+                    # get new bounding box
+                    x_n, y_n, w_n, h_n = get_contours_and_bounding_boxes(mask_poly)
+                    img_crop_rgb = img_crop_rgb[y_n: y_n + h_n, x_n: x_n + w_n]
+                    img_crop_bin = img_crop_bin[y_n: y_n + h_n, x_n: x_n + w_n]
+                    mask_poly = mask_poly[y_n: y_n + h_n, x_n: x_n + w_n]
+                else:
+                    better_des_slope = 0
+
+                if not self.do_not_mask_with_textline_contour:
+                    img_crop_rgb[mask_poly == 0] = 255 # FIXME: or median color?
+                    img_crop_bin[mask_poly == 0] = 255
+
+                if (type_textregion !='drop-capital' and
+                    mask_poly.sum() < 0.50 * mask_poly.size and
+                    w_scaled > 90):
+
+                    img_crop_rgb, img_crop_bin = \
+                        break_curved_line_into_small_pieces_and_then_merge(
+                            img_crop_rgb, img_crop_bin, mask_poly)
+
+                if w_scaled < 750:#1.5*image_width:
+                    img_crop_split_rgb = img_crop_split_bin = None
+                else:
+                    img_crop_split_rgb, img_crop_split_bin = return_textlines_split_if_needed(
+                        img_crop_rgb, img_crop_bin)
+                if img_crop_split_rgb:
+                    cropped_lines_rgb.extend(img_crop_split_rgb)
+                    cropped_lines_bin.extend(img_crop_split_bin)
+                    if abs(better_des_slope) > 45:
+                        cropped_lines_ver_index.append(1)
+                        cropped_lines_ver_index.append(1)
+                    else:
+                        cropped_lines_ver_index.append(0)
+                        cropped_lines_ver_index.append(0)
+                    cropped_lines_meging_indexing.append(1)
+                    cropped_lines_meging_indexing.append(-1)
+                else:
+                    cropped_lines_rgb.append(img_crop_rgb)
+                    cropped_lines_bin.append(img_crop_bin)
+                    if abs(better_des_slope) > 45:
+                        cropped_lines_ver_index.append(1)
+                    else:
+                        cropped_lines_ver_index.append(0)
+                    cropped_lines_meging_indexing.append(0)
+
+        cropped_lines_rgb = [preprocess_and_resize_image_for_ocrcnn_model(img, image_height, image_width)
+                             for img in cropped_lines_rgb]
+        cropped_lines_bin = [preprocess_and_resize_image_for_ocrcnn_model(img, image_height, image_width)
+                             for img in cropped_lines_bin]
+
         extracted_texts = []
-        extracted_conf_value = []
+        extracted_confs = []
+        self.logger.debug("processing %d lines for %d regions",
+                          len(cropped_lines_rgb), len(set(cropped_lines_region_indexer)))
+        cropped_lines = zip(cropped_lines_rgb, cropped_lines_bin, cropped_lines_ver_index)
+        for batch in batched(cropped_lines, self.b_s):
+            imgs_rgb, imgs_bin, ver_index = zip(*batch)
+            ver_index = np.array(ver_index)
+            imgs_rgb = np.stack(imgs_rgb)
+            imgs_bin = np.stack(imgs_bin)
+            imgs_rgb_ver = imgs_rgb[ver_index > 0, ::-1, ::-1]
+            imgs_bin_ver = imgs_bin[ver_index > 0, ::-1, ::-1]
 
-        n_iterations  = math.ceil(len(cropped_lines) / self.b_s) 
-
-        # FIXME: copy pasta
-        for i in range(n_iterations):
-            if i==(n_iterations-1):
-                n_start = i*self.b_s
-                imgs = cropped_lines[n_start:]
-                imgs = np.array(imgs)
-                imgs = imgs.reshape(imgs.shape[0], image_height, image_width, 3)
-                
-                ver_imgs = np.array( cropped_lines_ver_index[n_start:] )
-                indices_ver = np.where(ver_imgs == 1)[0]
-                
-                #print(indices_ver, 'indices_ver')
-                if len(indices_ver)>0:
-                    imgs_ver_flipped = imgs[indices_ver, : ,: ,:]
-                    imgs_ver_flipped = imgs_ver_flipped[:,::-1,::-1,:]
-                    #print(imgs_ver_flipped, 'imgs_ver_flipped')
-                    
-                else:
-                    imgs_ver_flipped = None
-                
-                if img_bin:
-                    imgs_bin = cropped_lines_bin[n_start:]
-                    imgs_bin = np.array(imgs_bin)
-                    imgs_bin = imgs_bin.reshape(imgs_bin.shape[0], image_height, image_width, 3)
-                    
-                    if len(indices_ver)>0:
-                        imgs_bin_ver_flipped = imgs_bin[indices_ver, : ,: ,:]
-                        imgs_bin_ver_flipped = imgs_bin_ver_flipped[:,::-1,::-1,:]
-                        #print(imgs_ver_flipped, 'imgs_ver_flipped')
-                        
-                    else:
-                        imgs_bin_ver_flipped = None
-            else:
-                n_start = i*self.b_s
-                n_end = (i+1)*self.b_s
-                imgs = cropped_lines[n_start:n_end]
-                imgs = np.array(imgs).reshape(self.b_s, image_height, image_width, 3)
-                
-                ver_imgs = np.array( cropped_lines_ver_index[n_start:n_end] )
-                indices_ver = np.where(ver_imgs == 1)[0]
-                #print(indices_ver, 'indices_ver')
-                
-                if len(indices_ver)>0:
-                    imgs_ver_flipped = imgs[indices_ver, : ,: ,:]
-                    imgs_ver_flipped = imgs_ver_flipped[:,::-1,::-1,:]
-                    #print(imgs_ver_flipped, 'imgs_ver_flipped')
-                else:
-                    imgs_ver_flipped = None
-
-                
-                if img_bin:
-                    imgs_bin = cropped_lines_bin[n_start:n_end]
-                    imgs_bin = np.array(imgs_bin).reshape(self.b_s, image_height, image_width, 3)
-                    
-                    
-                    if len(indices_ver)>0:
-                        imgs_bin_ver_flipped = imgs_bin[indices_ver, : ,: ,:]
-                        imgs_bin_ver_flipped = imgs_bin_ver_flipped[:,::-1,::-1,:]
-                        #print(imgs_ver_flipped, 'imgs_ver_flipped')
-                    else:
-                        imgs_bin_ver_flipped = None
-                
-
-            self.logger.debug("processing next %d lines", len(imgs))
-            preds = self.model_zoo.get('ocr').predict(imgs, verbose=0)
+            # inference model now yields (char-bytes, line-prob) instead of vocidx-softmax
+            # (so ctc_decode and inverse StringLookup are included)
+            # also, the model now expects a secondary binary input image
+            preds, probs = self.model_zoo.get('ocr').predict((imgs_rgb, imgs_bin), verbose=0)
             
-            if len(indices_ver)>0:
-                preds_flipped = self.model_zoo.get('ocr').predict(imgs_ver_flipped, verbose=0)
-                preds_max_fliped = np.max(preds_flipped, axis=2 )
-                preds_max_args_flipped = np.argmax(preds_flipped, axis=2 )
-                pred_max_not_unk_mask_bool_flipped = preds_max_args_flipped[:,:]!=self.end_character
-                masked_means_flipped = \
-                    np.sum(preds_max_fliped * pred_max_not_unk_mask_bool_flipped, axis=1) / \
-                    np.sum(pred_max_not_unk_mask_bool_flipped, axis=1)
-                masked_means_flipped[np.isnan(masked_means_flipped)] = 0
-                
-                preds_max = np.max(preds, axis=2 )
-                preds_max_args = np.argmax(preds, axis=2 )
-                pred_max_not_unk_mask_bool = preds_max_args[:,:]!=self.end_character
-                
-                masked_means = \
-                    np.sum(preds_max * pred_max_not_unk_mask_bool, axis=1) / \
-                    np.sum(pred_max_not_unk_mask_bool, axis=1)
-                masked_means[np.isnan(masked_means)] = 0
-                
-                masked_means_ver = masked_means[indices_ver]
-                #print(masked_means_ver, 'pred_max_not_unk')
-                
-                indices_where_flipped_conf_value_is_higher = \
-                    np.where(masked_means_flipped > masked_means_ver)[0]
-                
-                #print(indices_where_flipped_conf_value_is_higher, 'indices_where_flipped_conf_value_is_higher')
-                if len(indices_where_flipped_conf_value_is_higher)>0:
-                    indices_to_be_replaced = indices_ver[indices_where_flipped_conf_value_is_higher]
-                    preds[indices_to_be_replaced,:,:] = \
-                        preds_flipped[indices_where_flipped_conf_value_is_higher, :, :]
+            if ver_index.any():
+                preds_ver, probs_ver = self.model_zoo.get('ocr').predict((imgs_rgb_ver, imgs_bin_ver), verbose=0)
+                flipped_ver_is_better = np.flatnonzero(probs_ver > probs[ver_index > 0])
+                if len(flipped_ver_is_better):
+                    self.logger.info("%d skewed lines perform better when flipped", len(flipped_ver_is_better))
+                    preds[ver_index > 0][flipped_ver_is_better] = preds_ver[flipped_ver_is_better]
+                    probs[ver_index > 0][flipped_ver_is_better] = probs_ver[flipped_ver_is_better]
 
-            if img_bin:
-                preds_bin = self.model_zoo.get('ocr').predict(imgs_bin, verbose=0)
-                
-                if len(indices_ver)>0:
-                    preds_flipped = self.model_zoo.get('ocr').predict(imgs_bin_ver_flipped, verbose=0)
-                    preds_max_fliped = np.max(preds_flipped, axis=2 )
-                    preds_max_args_flipped = np.argmax(preds_flipped, axis=2 )
-                    pred_max_not_unk_mask_bool_flipped = preds_max_args_flipped[:,:]!=self.end_character
-                    masked_means_flipped = \
-                        np.sum(preds_max_fliped * pred_max_not_unk_mask_bool_flipped, axis=1) / \
-                        np.sum(pred_max_not_unk_mask_bool_flipped, axis=1)
-                    masked_means_flipped[np.isnan(masked_means_flipped)] = 0
-                    
-                    preds_max = np.max(preds, axis=2 )
-                    preds_max_args = np.argmax(preds, axis=2 )
-                    pred_max_not_unk_mask_bool = preds_max_args[:,:]!=self.end_character
-                    
-                    masked_means = \
-                        np.sum(preds_max * pred_max_not_unk_mask_bool, axis=1) / \
-                        np.sum(pred_max_not_unk_mask_bool, axis=1)
-                    masked_means[np.isnan(masked_means)] = 0
-                    
-                    masked_means_ver = masked_means[indices_ver]
-                    #print(masked_means_ver, 'pred_max_not_unk')
-                    
-                    indices_where_flipped_conf_value_is_higher = \
-                        np.where(masked_means_flipped > masked_means_ver)[0]
-                    
-                    #print(indices_where_flipped_conf_value_is_higher, 'indices_where_flipped_conf_value_is_higher')
-                    if len(indices_where_flipped_conf_value_is_higher)>0:
-                        indices_to_be_replaced = indices_ver[indices_where_flipped_conf_value_is_higher]
-                        preds_bin[indices_to_be_replaced,:,:] = \
-                            preds_flipped[indices_where_flipped_conf_value_is_higher, :, :]
-                
-                preds = (preds + preds_bin) / 2.
-
-            pred_texts = decode_batch_predictions(preds, self.model_zoo.get('num_to_char'))
-            
-            preds_max = np.max(preds, axis=2 )
-            preds_max_args = np.argmax(preds, axis=2 )
-            pred_max_not_unk_mask_bool = preds_max_args[:,:]!=self.end_character
-            masked_means = \
-                np.sum(preds_max * pred_max_not_unk_mask_bool, axis=1) / \
-                np.sum(pred_max_not_unk_mask_bool, axis=1)
-
-            for ib in range(imgs.shape[0]):
-                pred_texts_ib = pred_texts[ib].replace("[UNK]", "")
-                if masked_means[ib] >= self.min_conf_value_of_textline_text:
-                    extracted_texts.append(pred_texts_ib)
-                    extracted_conf_value.append(masked_means[ib])
-                else:
+            def nooov(x):
+                return x != b'[UNK]'
+            for pred, prob in zip(preds, probs):
+                if prob < self.min_conf_value_of_textline_text:
                     extracted_texts.append("")
-                    extracted_conf_value.append(0)
-        del cropped_lines
+                    extracted_confs.append(0)
+                else:
+                    text = b''.join(
+                        filter(nooov,
+                               map(bytes,
+                                   (filter(None, char)
+                                    for char in pred.tolist())))).decode('utf-8')
+                    extracted_texts.append(text)
+                    extracted_confs.append(prob)
+        del cropped_lines_rgb
         del cropped_lines_bin
         gc.collect()
         
         extracted_texts_merged = [extracted_texts[ind]
-                                    if cropped_lines_meging_indexing[ind]==0
-                                    else extracted_texts[ind]+" "+extracted_texts[ind+1]
-                                    if cropped_lines_meging_indexing[ind]==1
-                                    else None
-                                    for ind in range(len(cropped_lines_meging_indexing))]
-        
-        extracted_conf_value_merged = [extracted_conf_value[ind]  # type: ignore
-                                        if cropped_lines_meging_indexing[ind]==0
-                                        else (extracted_conf_value[ind]+extracted_conf_value[ind+1])/2.
-                                        if cropped_lines_meging_indexing[ind]==1
-                                        else None
-                                        for ind in range(len(cropped_lines_meging_indexing))]
-
-        extracted_conf_value_merged: List[float] = [extracted_conf_value_merged[ind_cfm]
-                                        for ind_cfm in range(len(extracted_texts_merged))
-                                        if extracted_texts_merged[ind_cfm] is not None]
-
-        extracted_texts_merged = [ind for ind in extracted_texts_merged if ind is not None]
+                                  if cropped_lines_meging_indexing[ind] == 0
+                                  else extracted_texts[ind] + " " + extracted_texts[ind + 1]
+                                  for ind in range(len(cropped_lines_meging_indexing))
+                                  if cropped_lines_meging_indexing[ind] >= 0]
+        extracted_confs_merged = [extracted_confs[ind]
+                                  if cropped_lines_meging_indexing[ind] == 0
+                                  else 0.5 * (extracted_confs[ind] + extracted_confs[ind + 1])
+                                  for ind in range(len(cropped_lines_meging_indexing))
+                                  if cropped_lines_meging_indexing[ind] >= 0]
 
         return EynollahOcrResult(
             extracted_texts_merged=extracted_texts_merged,
-            extracted_conf_value_merged=extracted_conf_value_merged,
+            extracted_confs_merged=extracted_confs_merged,
             cropped_lines_region_indexer=cropped_lines_region_indexer,
             total_bb_coordinates=total_bb_coordinates,
         )
@@ -569,7 +373,7 @@ class Eynollah_ocr(Eynollah):
         cropped_lines_region_indexer = result.cropped_lines_region_indexer
         total_bb_coordinates = result.total_bb_coordinates
         extracted_texts_merged = result.extracted_texts_merged
-        extracted_conf_value_merged = result.extracted_conf_value_merged
+        extracted_confs_merged = result.extracted_confs_merged
 
         unique_cropped_lines_region_indexer = np.unique(cropped_lines_region_indexer)
         if out_image_with_text:
@@ -646,8 +450,8 @@ class Eynollah_ocr(Eynollah):
                     
                     if not is_textline_text:
                         text_subelement = ET.SubElement(child_textregion, 'TextEquiv')
-                        if extracted_conf_value_merged:
-                            text_subelement.set('conf', f"{extracted_conf_value_merged[indexer]:.2f}")
+                        if extracted_confs_merged:
+                            text_subelement.set('conf', f"{extracted_confs_merged[indexer]:.2f}")
                         unicode_textline = ET.SubElement(text_subelement, 'Unicode')
                         unicode_textline.text = extracted_texts_merged[indexer]
                     else:
@@ -655,8 +459,8 @@ class Eynollah_ocr(Eynollah):
                             if childtest3.tag.endswith("TextEquiv"):
                                 for child_uc in childtest3:
                                     if child_uc.tag.endswith("Unicode"):
-                                        if extracted_conf_value_merged:
-                                            childtest3.set('conf', f"{extracted_conf_value_merged[indexer]:.2f}")
+                                        if extracted_confs_merged:
+                                            childtest3.set('conf', f"{extracted_confs_merged[indexer]:.2f}")
                                         child_uc.text = extracted_texts_merged[indexer]
                             
                     indexer = indexer + 1

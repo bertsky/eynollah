@@ -2,6 +2,7 @@ from typing import Iterable, List, Tuple
 from logging import getLogger
 import time
 import math
+from itertools import islice
 
 try:
     import matplotlib.pyplot as plt
@@ -32,6 +33,11 @@ def pairwise(iterable):
     for b in iterator:
         yield a, b
         a = b
+
+def batched(iterable, n):
+    iterator = iter(iterable)
+    while batch := tuple(islice(iterator, n)):
+        yield batch
 
 def return_multicol_separators_x_start_end(
         regions_without_separators, peak_points, top, bot,
