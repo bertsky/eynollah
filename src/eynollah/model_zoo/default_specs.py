@@ -209,22 +209,6 @@ DEFAULT_MODEL_SPECS = EynollahModelSpecSet([
     ),
 
     EynollahModelSpec(
-        category="num_to_char",
-        variant='',
-        filename="characters_org.txt",
-        dist_url=dist_url("ocr"),
-        type='decoder',
-    ),
-
-    EynollahModelSpec(
-        category="characters",
-        variant='',
-        filename="characters_org.txt",
-        dist_url=dist_url("ocr"),
-        type='List[str]',
-    ),
-
-    EynollahModelSpec(
         category="ocr",
         variant='tr',
         filename="models_eynollah/model_eynollah_ocr_trocr_20250919",

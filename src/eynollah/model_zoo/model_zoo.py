@@ -123,12 +123,8 @@ class EynollahModelZoo:
                 model_category = model_category[:-8]
                 load_kwargs["patched"] = True
 
-            if model_category == 'ocr':
+            if model_category == 'ocr' and model_variant == 'tr':
                 model = self._load_ocr_model(variant=model_variant, device=device)
-            elif model_category == 'num_to_char':
-                model = self._load_num_to_char()
-            elif model_category == 'characters':
-                model = self._load_characters()
             elif model_category == 'trocr_processor':
                 from transformers import TrOCRProcessor
                 model_path = self.model_path(model_category, model_variant)
@@ -232,9 +228,12 @@ class EynollahModelZoo:
         from tensorflow.keras.models import load_model
         from tensorflow.keras.models import Model as KerasModel
 
+        from ..training.models import cnn_rnn_ocr_model4inference
+
         self._configure_tf_device(model_category, device=device)
 
         model = load_model(model_path, compile=False)
+        assert isinstance(model, KerasModel)
 
         # from ..patch_encoder import (
         #     wrap_layout_model_patched,
@@ -249,15 +248,7 @@ class EynollahModelZoo:
 
         if model_category == 'ocr':
             # cnn-rnn-ocr task model may not be in inference mode, yet
-            try:
-                model.get_layer(name='ctc_loss')
-            except ValueError:
-                pass
-            else:
-                model = KerasModel(
-                    model.get_layer(name="image").input,   # type: ignore
-                    model.get_layer(name="dense2").output, # type: ignore
-                )
+            model = cnn_rnn_ocr_model4inference(model, model_path)
 
         model.make_predict_function()
 
@@ -368,29 +359,6 @@ class EynollahModelZoo:
             return model
 
         return self.load_model('ocr', model_variant=variant, device=device)
-
-    def _load_characters(self) -> List[str]:
-        """
-        Load encoding for OCR
-        """
-        with open(self.model_path('num_to_char'), "r") as config_file:
-            return json.load(config_file)
-
-    def _load_num_to_char(self) -> 'StringLookup':
-        """
-        Load decoder for OCR
-        """
-        os.environ['TF_USE_LEGACY_KERAS'] = '1' # avoid Keras 3 after TF 2.15
-        from ocrd_utils import tf_disable_interactive_logs
-        tf_disable_interactive_logs()
-
-        from tensorflow.keras.layers import StringLookup
-
-        characters = self._load_characters()
-        # Mapping characters to integers.
-        char_to_num = StringLookup(vocabulary=characters, mask_token=None)
-        # Mapping integers back to original characters.
-        return StringLookup(vocabulary=char_to_num.get_vocabulary(), mask_token=None, invert=True)
 
     def __str__(self):
         return tabulate(

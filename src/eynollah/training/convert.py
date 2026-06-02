@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from shutil import copy2
 import logging
+import json
 
 import click
 
@@ -74,18 +75,13 @@ def convert_cli(rebuild, format_, in_, out):
         model = get_model(config, logging.root)
         model.load_weights(model_path).assert_existing_objects_matched().expect_partial()
     else:
+        from .models import cnn_rnn_ocr_model4inference
+
         model = load_model(model_path, compile=False)
 
         if isinstance(model, KerasModel):
             # cnn-rnn-ocr task deviates between training and inference
-            try:
-                model.get_layer(name='ctc_loss')
-            except ValueError:
-                pass
-            else:
-                model = KerasModel(
-                    model.get_layer(name='image').input,
-                    model.get_layer(name='dense2').output)
+            model = cnn_rnn_ocr_model4inference(model, model_path)
 
     if format_ in ["hdf5", "keras", "tf"]:
         kwargs = {"save_format": {"hdf5": "h5"}.get(format_, format_)}

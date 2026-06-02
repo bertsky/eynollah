@@ -1,4 +1,5 @@
 import os
+import json
 
 os.environ['TF_USE_LEGACY_KERAS'] = '1' # avoid Keras 3 after TF 2.15
 import tensorflow as tf
@@ -23,6 +24,7 @@ from tensorflow.keras.layers import (
     Reshape,
     UpSampling2D,
     ZeroPadding2D,
+    StringLookup,
     add,
     concatenate
 )
@@ -57,6 +59,50 @@ class CTCLayer(Layer):
 
         # At test time, just return the computed predictions.
         return y_pred
+
+class CTCDecoder(Layer):
+    def call(self, inputs):
+        n_samples = tf.shape(inputs)[0]
+        n_steps = inputs.shape[1]
+        n_classes = inputs.shape[2]
+        lengths = tf.ones(n_samples, dtype=tf.int32) * n_steps
+        ## Keras beam search seems to mess with double letters
+        ## but Keras greedy sometimes removes arbitrary letters
+        # outputs, logits = tf.keras.backend.ctc_decode(inputs,
+        #                                               lengths,
+        #                                               beam_width=20
+        #                                               greedy=False, # True,
+        #                                               # backend does not allow these kwargs
+        #                                               #merge_repeated=False,
+        #                                               #mask_index=inputs.shape[2]-1,
+        # )
+        # tf.nn.ctc_*_decoder (in contrast to tf.keras.backend.ctc_decode)
+        # needs logits instead of probs and time-major (batch 2nd dim)
+        inputs = tf.math.log(
+            tf.transpose(inputs, perm=[1, 0, 2]) + tf.keras.backend.epsilon()
+        )
+        # tf.nn.ctc_greedy_decoder() is not as precise
+        # tf.compat.v1.nn.ctc_beam_search_decoder() also needs merge_repeated=False
+        decoded, logits = tf.nn.ctc_beam_search_decoder(
+            inputs,
+            lengths,
+            beam_width=10,
+            top_paths=2,
+        )
+        # get top path for all sequences in batch
+        decoded = decoded[0]
+        logits = logits[:, 0] - logits[:, 1]
+        # convert to dense
+        outputs = tf.SparseTensor(decoded.indices, decoded.values,
+                                  (n_samples, n_steps))
+        outputs = tf.sparse.to_dense(sp_input=outputs, default_value=-1)
+        # # drop non-tokens (-1) and OOV (0)
+        # result = []
+        # for output in outputs:
+        #     result.append(tf.gather(output, tf.where(output > 0)))
+        # outputs = tf.stack(result)
+        probs = tf.exp(-logits)
+        return outputs, probs
     
 def mlp(x, hidden_units, dropout_rate):
     for units in hidden_units:
@@ -422,7 +468,7 @@ def machine_based_reading_order_model(n_classes,input_height=224,input_width=224
 
     return model
 
-def cnn_rnn_ocr_model(image_height=None, image_width=None, n_classes=None, max_len=None, inference=False):
+def cnn_rnn_ocr_model(image_height=None, image_width=None, n_classes=None, max_len=None, inference=False, characters_txt_file=None):
     inputs = Input(shape=(image_height, image_width, 3), name="image")
     labels = Input(name="label", shape=(None,))
 
@@ -492,12 +538,55 @@ def cnn_rnn_ocr_model(image_height=None, image_width=None, n_classes=None, max_l
     out = Dense(n_classes, activation="softmax", name="dense2")(out)
 
     if inference:
-        return Model(inputs, out)
+        # add second path for binarization
+        inputs_bin = Input(shape=(image_height, image_width, 3), name="image_bin")
+        out_bin = Model(inputs, out)(inputs_bin)
+        # ensemble raw results
+        out = 0.5 * (out + out_bin)
+        # get tf.string batch
+        out, prob = CTCDecoder()(out)
+        # decode int to str
+        with open(characters_txt_file, "r") as voc_file:
+            voc = json.load(voc_file)
+        char2num = StringLookup(vocabulary=voc)
+        voc = char2num.get_vocabulary()
+        num2char = StringLookup(vocabulary=voc, invert=True)
+        output = num2char(out)
+        # avoid output tf.dtype=string → np.dtype=object (which cannot be shm-ed)
+        output = tf.io.decode_raw(output, tf.uint8, fixed_length=max(map(len, voc)))
+
+        return Model((inputs, inputs_bin), (output, prob))
 
     # Add CTC layer for calculating CTC loss at each step.
     out = CTCLayer(name="ctc_loss")(labels, out)
     
     return Model((inputs, labels), out)
+
+def cnn_rnn_ocr_model4inference(model, model_path):
+    """convert trained cnn-rnn-ocr model to inference model post-hoc"""
+    try:
+        model.get_layer(name='ctc_loss')
+    except ValueError:
+        # likely already converted
+        return model
+    else:
+        inputs = model.get_layer(name='image').input
+        output = model.get_layer(name='dense2').output
+        inputs_bin = Input(inputs.shape[1:], name='image_bin')
+        output_bin = Model(inputs, output)(inputs_bin)
+        output = 0.5 * (output + output_bin)
+        output, prob = CTCDecoder()(output)
+        with open(model_path / "characters_org.txt", "r") as voc_file:
+            voc = json.load(voc_file)
+        char2num = StringLookup(vocabulary=voc)
+        voc = char2num.get_vocabulary()
+        num2char = StringLookup(vocabulary=voc, invert=True)
+        output = num2char(output)
+        # avoid output tf.dtype=string → np.dtype=object (which cannot be shm-ed)
+        output = tf.io.decode_raw(output, tf.uint8, fixed_length=max(map(len, voc)))
+        inputs = (inputs, inputs_bin)
+        outputs = (output, prob)
+        return Model(inputs, outputs)
 
 def get_model(config, logger):
     from sacred.config import create_captured_function
