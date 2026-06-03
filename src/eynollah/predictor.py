@@ -184,8 +184,8 @@ class Predictor(mp.context.SpawnProcess):
                             else:
                                 data.append(stack.enter_context(ndarray_shared(shared_data)))
                         if multi_input:
-                            data = tuple(np.concatenate(data0)
-                                         for data0 in zip(*data))
+                            data = list(np.concatenate(data0)
+                                        for data0 in zip(*data))
                         else:
                             data = np.concatenate(data)
                         #result = self.model.predict(data, verbose=0)
