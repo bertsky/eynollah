@@ -379,9 +379,9 @@ class EynollahModelZoo:
             return text, conf
         model.predict_on_batch = predict_torch
         # not actually needed (image processor does resize itself)
+        # no batch dimension (images passed as list w/ varying shapes)
         model.input_shape = (None,
-                             proc.image_processor.size.height,
-                             proc.image_processor.size.width,
+                             None,
                              len(proc.image_processor.image_mean))
         return model
 
