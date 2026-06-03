@@ -87,9 +87,8 @@ class Eynollah_ocr(Eynollah):
         img: MatLike,
         page_tree: ET.ElementTree,
         page_ns,
-        tr_ocr_input_height_and_width,
     ) -> EynollahOcrResult:
-        
+
         total_bb_coordinates = []
         cropped_lines = []
         cropped_lines_region_indexer = []
@@ -117,20 +116,14 @@ class Eynollah_ocr(Eynollah):
                     img_crop[mask_poly == 0] = 255 # FIXME: or median color?
 
                 if h > 0.1 * w:
-                    cropped_lines.append(resize_image(img_crop,
-                                                        tr_ocr_input_height_and_width,
-                                                        tr_ocr_input_height_and_width)  )
+                    cropped_lines.append(img_crop)
                     cropped_lines_meging_indexing.append(0)
                 else:
                     splited_images, _ = return_textlines_split_if_needed(img_crop, None)
                     if splited_images:
-                        cropped_lines.append(resize_image(splited_images[0],
-                                                            tr_ocr_input_height_and_width,
-                                                            tr_ocr_input_height_and_width))
+                        cropped_lines.append(splited_images[0])
+                        cropped_lines.append(splited_images[1])
                         cropped_lines_meging_indexing.append(1)
-                        cropped_lines.append(resize_image(splited_images[1],
-                                                            tr_ocr_input_height_and_width,
-                                                            tr_ocr_input_height_and_width))
                         cropped_lines_meging_indexing.append(-1)
                     else:
                         cropped_lines.append(img_crop)
@@ -172,10 +165,9 @@ class Eynollah_ocr(Eynollah):
         img_bin: Optional[MatLike],
         page_tree: ET.ElementTree,
         page_ns,
-        image_width,
-        image_height,
     ) -> EynollahOcrResult:
-        
+        _, image_height, image_width, _ = self.model_zoo.get('ocr').input_shape
+
         total_bb_coordinates = []
         cropped_lines_rgb = []
         cropped_lines_bin = []
@@ -482,18 +474,13 @@ class Eynollah_ocr(Eynollah):
                     img=img,
                     page_tree=page_tree,
                     page_ns=page_ns,
-
-                    tr_ocr_input_height_and_width = 384
                 )
             else:
                 result = self.run_cnn( 
                     img=img,
                     page_tree=page_tree,
                     page_ns=page_ns,
-
                     img_bin=img_bin,
-                    image_width=512,
-                    image_height=32,
                 )
 
             self.write_ocr(
