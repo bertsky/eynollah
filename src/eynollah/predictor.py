@@ -129,6 +129,7 @@ class Predictor(mp.context.SpawnProcess):
                     "enhancement": 4,
                     "reading_order": 4,
                     "ocr": 8,
+                    "ocr_tr": 2,
                     # medium size (672x672x3)...
                     "textline": 2,
                     # large models...
@@ -144,7 +145,14 @@ class Predictor(mp.context.SpawnProcess):
                     self.resultq.put((jobid, result))
                     #self.logger.debug("sent result for '%d': %s", jobid, result)
                 else:
-                    if isinstance(shared_data, tuple):
+                    if self.name == 'ocr_tr':
+                        # this model takes a list of (image) tensors
+                        # of heterogeneous shape as input,
+                        # resizing them internally;
+                        # so this looks like multi-input
+                        multi_input = True
+                        batch_size = len(shared_data)
+                    elif isinstance(shared_data, tuple):
                         multi_input = True
                         batch_size = shared_data[0]['shape'][0]
                     else:
@@ -215,8 +223,11 @@ class Predictor(mp.context.SpawnProcess):
     def load_model(self, *load_args, **load_kwargs):
         assert len(load_args)
         self.name = '_'.join(list(load_args[:1]) +
+                             list(load_kwargs[key] for key in load_kwargs
+                                  if key == 'model_variant') +
                              list(key for key in load_kwargs
-                                  if key != 'device'))
+                                  if key in ['patched', 'resized']
+                                  and load_kwargs[key]))
         self.load_args = load_args
         self.load_kwargs = load_kwargs
         self.start() # call run() in subprocess

@@ -116,22 +116,15 @@ class EynollahModelZoo:
                 model_category, model_variant = load_args
                 load_kwargs["model_variant"] = model_variant
 
-            if model_category.endswith('_resized'):
-                model_category = model_category[:-8]
-                load_kwargs["resized"] = True
-            elif model_category.endswith('_patched'):
-                model_category = model_category[:-8]
-                load_kwargs["patched"] = True
+            # if model_category.endswith('_resized'):
+            #     model_category = model_category[:-8]
+            #     load_kwargs["resized"] = True
+            # elif model_category.endswith('_patched'):
+            #     model_category = model_category[:-8]
+            #     load_kwargs["patched"] = True
 
-            if model_category == 'ocr' and model_variant == 'tr':
-                model = self._load_ocr_model(variant=model_variant, device=device)
-            elif model_category == 'trocr_processor':
-                from transformers import TrOCRProcessor
-                model_path = self.model_path(model_category, model_variant)
-                model = TrOCRProcessor.from_pretrained(model_path)
-            else:
-                model = Predictor(self.logger, self)
-                model.load_model(model_category, **load_kwargs)
+            model = Predictor(self.logger, self)
+            model.load_model(model_category, **load_kwargs)
 
             ret[model_category] = model
         self._loaded.update(ret)
@@ -142,8 +135,8 @@ class EynollahModelZoo:
             model_category: str,
             model_variant: str = '',
             model_path_override: Optional[str] = None,
-            patched: bool = False,
-            resized: bool = False,
+            # patched: bool = False,
+            # resized: bool = False,
             device: str = '',
     ) -> AnyModel:
         """
@@ -153,7 +146,9 @@ class EynollahModelZoo:
             self.override_models((model_category, model_variant, model_path_override))
         model_path = self.model_path(model_category, model_variant)
 
-        if model_path.is_dir() and (model_path / "keras_metadata.pb").exists():
+        if model_category == 'ocr' and model_variant == 'tr':
+            model = self._load_trocr_model(model_path, device=device)
+        elif model_path.is_dir() and (model_path / "keras_metadata.pb").exists():
             # Keras model
             model = self._load_keras_model(model_category, model_path, device=device)
         elif model_path.is_dir():
@@ -219,6 +214,30 @@ class EynollahModelZoo:
             self.logger.exception("cannot configure GPU devices")
         if not cuda:
             self.logger.warning("no GPU device available")
+
+    def _configure_torch_device(self, model_category, device=''):
+        import torch
+
+        device0 = torch.device('cpu')
+        if not device and torch.cuda.is_available():
+            device = 'GPU' # try
+        if device and ':' in device:
+            for spec in device.split(','):
+                cat, dev = spec.split(':')
+                if fnmatchcase('ocr', cat):
+                    device = dev
+                    break
+        if device and device.startswith('GPU'):
+            try:
+                device0 = torch.device('cuda', int(device[3:] or 0))
+                name = torch.cuda.get_device_name(device0)
+                self.logger.info("using GPU %s (%s) for model ocr:tr", device0, name)
+            except:
+                self.logger.exception("cannot configure GPU device")
+                device0 = torch.device('cpu')
+        if device0.type != 'cuda':
+            self.logger.warning("no GPU device available")
+        return device0
 
     def _load_keras_model(self, model_category, model_path, device=''):
         os.environ['TF_USE_LEGACY_KERAS'] = '1' # avoid Keras 3 after TF 2.15
@@ -325,40 +344,46 @@ class EynollahModelZoo:
 
         return model
 
-    def _load_ocr_model(self, variant: str, device: str = "") -> AnyModel:
+    def _load_trocr_model(self, model_path, device: str = "") -> AnyModel:
         """
         Load OCR model
         """
-        model_dir = self.model_path('ocr', variant)
-        if variant == 'tr':
-            from transformers import VisionEncoderDecoderModel
-            import torch
-            model = VisionEncoderDecoderModel.from_pretrained(model_dir)
-            assert isinstance(model, VisionEncoderDecoderModel)
-            device0 = torch.device('cpu')
-            if not device and torch.cuda.is_available():
-                device = 'GPU' # try
-            if device and ':' in device:
-                for spec in device.split(','):
-                    cat, dev = spec.split(':')
-                    if fnmatchcase('ocr', cat):
-                        device = dev
-                        break
-            if device and device.startswith('GPU'):
-                try:
-                    device0 = torch.device('cuda', int(device[3:] or 0))
-                    name = torch.cuda.get_device_name(device0)
-                    self.logger.info("using GPU %s (%s) for model ocr:tr", device0, name)
-                except:
-                    self.logger.exception("cannot configure GPU device")
-                    device0 = torch.device('cpu')
-            if device0.type == 'cuda':
-                model.to(device0)
-            else:
-                self.logger.warning("no GPU device available")
-            return model
+        from transformers import VisionEncoderDecoderModel, TrOCRProcessor
+        import numpy as np
 
-        return self.load_model('ocr', model_variant=variant, device=device)
+        device = self._configure_torch_device('ocr', device=device)
+        proc = TrOCRProcessor.from_pretrained(model_path)
+        model = VisionEncoderDecoderModel.from_pretrained(model_path)
+        assert isinstance(model, VisionEncoderDecoderModel)
+
+        model.to(device)
+        def predict_torch(inputs):
+            output = model.generate(
+                proc(inputs, return_tensors="pt").pixel_values.to(device),
+                # beam search instead of greedy decoding:
+                num_beams=4,
+                # also return probability
+                output_scores=True,
+                return_dict_in_generate=True)
+            if output.sequences_scores is not None:
+                # log-prob averaged over length
+                conf = output.sequences_scores.exp().clamp(0.0, 1.0).cpu().numpy()
+            else:
+                conf = np.ones(len(output.sequences), dtype=float)
+            text = proc.batch_decode(
+                output.sequences,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False)
+            # we must convert to ndarray for Predictor resultq to work
+            text = np.array(text)
+            return text, conf
+        model.predict_on_batch = predict_torch
+        # not actually needed (image processor does resize itself)
+        model.input_shape = (None,
+                             proc.image_processor.size.height,
+                             proc.image_processor.size.width,
+                             len(proc.image_processor.image_mean))
+        return model
 
     def __str__(self):
         return tabulate(

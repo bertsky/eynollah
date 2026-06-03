@@ -217,20 +217,4 @@ DEFAULT_MODEL_SPECS = EynollahModelSpecSet([
         type='Keras',
     ),
 
-    EynollahModelSpec(
-        category="trocr_processor",
-        variant='',
-        filename="models_eynollah/model_eynollah_ocr_trocr_20250919",
-        dist_url=dist_url("ocr"),
-        type='TrOCRProcessor',
-    ),
-
-    EynollahModelSpec(
-        category="trocr_processor",
-        variant='htr',
-        filename="models_eynollah/microsoft/trocr-base-handwritten",
-        dist_url=dist_url("extra"),
-        type='TrOCRProcessor',
-    ),
-
 ])

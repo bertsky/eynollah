@@ -70,8 +70,7 @@ class Eynollah_ocr(Eynollah):
 
     def setup_models(self, device=''):
         if self.tr_ocr:
-            self.model_zoo.load_models('trocr_processor',
-                                       ('ocr', 'tr'),
+            self.model_zoo.load_models(('ocr', 'tr'),
                                        device=device)
         else:
             self.model_zoo.load_models('ocr',
@@ -142,24 +141,7 @@ class Eynollah_ocr(Eynollah):
         self.logger.debug("processing %d lines for %d regions",
                           len(cropped_lines), len(set(cropped_lines_region_indexer)))
         for imgs in batched(cropped_lines, self.b_s):
-            pixel_values = self.model_zoo.get('trocr_processor')(
-                imgs, return_tensors="pt").pixel_values
-            output = self.model_zoo.get('ocr').generate(
-                pixel_values.to(self.device),
-                # beam search instead of greedy decoding:
-                num_beams=4,
-                # also return probability
-                output_scores=True,
-                return_dict_in_generate=True)
-            if output.sequences_scores is not None:
-                # log-prob averaged over length
-                conf = output.sequences_scores.exp().clamp(0.0, 1.0).tolist()
-            else:
-                conf = [1.0] * len(output.sequences)
-            text = self.model_zoo.get('trocr_processor').batch_decode(
-                output.sequences,
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=False)
+            text, conf = self.model_zoo.get('ocr').predict(imgs)
             extracted_confs.extend(conf)
             extracted_texts.extend(text)
         del cropped_lines
