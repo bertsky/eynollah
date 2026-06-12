@@ -68,6 +68,12 @@ def convert_cli(rebuild, format_, in_, out):
         ex.add_config(str(config_path))
         # some models deviate between training and inference
         ex.add_config(inference=True)
+        # make sure the local vocab file gets re-used
+        characters_txt_file = model_path / "characters_org.txt"
+        with open(characters_txt_file, "r") as voc_file:
+            voc = json.load(voc_file)
+        ex.add_config(characters_txt_file=characters_txt_file)
+        ex.add_config(n_classes=len(voc) + 3)
         # just retrieve final config (via pseudo-run)
         ex.main(lambda: 0)
         config = ex.run(options={'--loglevel': 'ERROR'}).config
