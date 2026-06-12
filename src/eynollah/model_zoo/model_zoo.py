@@ -182,7 +182,10 @@ class EynollahModelZoo:
                         if fnmatchcase(model_category, cat):
                             device = dev
                             break
-                if device == 'CPU':
+                if ':' in device:
+                    self.logger.warning("missing device specification for model type %s", model_category)
+                    gpus = gpus[:1]
+                elif device == 'CPU':
                     gpus = []
                 else:
                     assert device.startswith('GPU')
@@ -227,6 +230,9 @@ class EynollahModelZoo:
                 if fnmatchcase('ocr', cat):
                     device = dev
                     break
+            if ':' in device:
+                self.logger.warning("missing device specification for model type %s", model_category)
+                device = 'GPU'
         if device and device.startswith('GPU'):
             try:
                 device0 = torch.device('cuda', int(device[3:] or 0))
@@ -309,7 +315,10 @@ class EynollahModelZoo:
                     if fnmatchcase(model_category, cat):
                         device = dev
                         break
-            if device == 'CPU':
+            if ':' in device:
+                self.logger.warning("missing device specification for model type %s", model_category)
+                gpu = 0
+            elif device == 'CPU':
                 gpu = -1
             else:
                 assert device.startswith('GPU')
