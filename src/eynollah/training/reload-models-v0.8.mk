@@ -58,7 +58,10 @@ $(MODELS_DST)/%.h5: $(MODELS_SRC)/%
 
 $(MODELS_DST)/%.onnx: $(MODELS_SRC)/%
 	if jq -e '.task == "segmentation" and .backbone_type == "transformer"' $</config.json &>/dev/null; then \
-	echo skipping $@: vision transformer architecture currently does not work with ONNX; else \
+	echo skipping $@: vision transformer architecture currently does not work with ONNX; \
+	elif jq -e '.task == "cnn-rnn-ocr"' $</config.json &>/dev/null || test x$(findstring _ocr,$@) = x_ocr; then \
+	echo skipping $@: OCR CTC decoder does not work with ONNX; \
+	else \
 	eynollah-training convert \
 		$(and $(wildcard $</config.json),--rebuild) \
 		--in $< \
