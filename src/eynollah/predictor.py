@@ -214,7 +214,7 @@ class Predictor(mp.context.SpawnProcess):
                             self.resultq.put((jobid, result))
                             #self.logger.debug("sent result for '%d': %s", jobid, result)
             except Exception as e:
-                self.logger.error("prediction for %s failed: %s", self.name, e.__class__.__name__)
+                self.logger.exception("prediction for %s failed: %s", self.name, e.__class__.__name__)
                 result = e
                 self.resultq.put((jobid, result))
         close_all()
