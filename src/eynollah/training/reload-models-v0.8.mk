@@ -26,17 +26,19 @@ CURRENT_MODELS += eynollah-enhancement_20210425
 all: tf-serving
 
 tf-serving: $(CURRENT_MODELS:%=$(MODELS_DST)/%)
+tf: $(CURRENT_MODELS:%=$(MODELS_DST)/%)
 keras: $(CURRENT_MODELS:%=$(MODELS_DST)/%.keras)
 hdf5: $(CURRENT_MODELS:%=$(MODELS_DST)/%.h5)
 onnx: $(CURRENT_MODELS:%=$(MODELS_DST)/%.onnx)
 
+$(MODELS_DST)/%: FORMAT = $(or $(filter tf,$(MAKECMDGOALS)), tf-serving)
 $(MODELS_DST)/%: $(MODELS_SRC)/%
 	eynollah-training convert \
 		$(and $(wildcard $</config.json),--rebuild) \
 		--in $< \
-		--format tf-serving \
+		--format $(FORMAT) \
 		--out $@ \
-	2>&1 | tee $(notdir $<).tf-serving.log
+	2>&1 | tee $(notdir $<).$(FORMAT).log
 
 $(MODELS_DST)/%.keras: $(MODELS_SRC)/%
 	eynollah-training convert \
