@@ -166,7 +166,8 @@ class Eynollah_ocr(Eynollah):
         page_tree: ET.ElementTree,
         page_ns,
     ) -> EynollahOcrResult:
-        _, image_height, image_width, _ = self.model_zoo.get('ocr').input_shape
+        input_shape, _ = self.model_zoo.get('ocr').input_shape
+        _, image_height, image_width, _ = input_shape
 
         total_bb_coordinates = []
         cropped_lines_rgb = []

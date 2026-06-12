@@ -23,6 +23,7 @@ def test_cnnrnnocr1(
         model = model_zoo.get('ocr')
         assert isinstance(model, Predictor)
         shape = model.input_shape
-        assert len(shape) == 4
+        assert len(shape) == 2
+        assert len(shape[0]) == 4
     except ImportError:
         pass
