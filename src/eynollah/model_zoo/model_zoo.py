@@ -307,6 +307,8 @@ class EynollahModelZoo:
         import onnxruntime as ort
         import numpy as np
 
+        ort.set_default_logger_severity(3)
+
         providers = ort.get_available_providers()
         if device:
             if ':' in device:
