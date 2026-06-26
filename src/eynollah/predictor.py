@@ -191,13 +191,19 @@ class Predictor(mp.context.SpawnProcess):
                         #result = self.model.predict(data, verbose=0)
                         # faster, less VRAM
                         result = self.model.predict_on_batch(data)
-                    if isinstance(result, tuple):
+                    def make_shareable(x):
+                        # convert tf.string/np.object to fixed-length bytes
+                        # (because object segfaults in shm)
+                        if x.dtype is np.dtype(object):
+                            return x.astype(bytes)
+                        return x
+                    if isinstance(result, (list, tuple)):
                         multi_output = True
-                        results = zip(*(np.split(result0, len(jobs))
+                        results = zip(*(np.split(make_shareable(result0), len(jobs))
                                         for result0 in result))
                     else:
                         multi_output = False
-                        results = np.split(result, len(jobs))
+                        results = np.split(make_shareable(result), len(jobs))
                     #self.logger.debug("sharing result array for '%d'", jobid)
                     with ExitStack() as stack:
                         for jobid, result in zip(jobs, results):
