@@ -351,10 +351,15 @@ class EynollahModelZoo:
                     # 'trt_timing_cache_enable': True,
                     # ...
                 })] + providers
+        provider0 = providers[0]
+        if isinstance(provider0, tuple):
+            provider0 = provider0[0]
+        self.logger.info("using %s with ONNX provider %s for model %s",
+                         "GPU %d" % gpu if gpu >= 0 else "CPU",
+                         provider0[:-17], model_category)
         model = ort.InferenceSession(
             model_path,
             providers=providers)
-        # FIXME: notify about selected provider/device
         model_inputs = [model_input.name
                         for model_input in model.get_inputs()]
         model_outputs = [model_output.name
