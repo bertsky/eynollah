@@ -195,6 +195,10 @@ class Predictor(mp.context.SpawnProcess):
                         # convert tf.string/np.object to fixed-length bytes
                         # (because object segfaults in shm)
                         if x.dtype is np.dtype(object):
+                            # ONNX conversion for some reason decodes bytes into str already
+                            # so here we undo this, too
+                            if x[0].dtype is np.dtype(object) and isinstance(x[0, 0], str):
+                                x = np.char.encode(x.astype(str), 'utf-8')
                             return x.astype(bytes)
                         return x
                     if isinstance(result, (list, tuple)):
