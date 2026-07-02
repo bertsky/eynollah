@@ -99,7 +99,12 @@ def convert_cli(rebuild, format_, in_, out):
         model.export(out)
     elif format_ == "onnx":
         import tf2onnx
+        import onnx
         tf2onnx.convert.from_keras(model, opset=18, output_path=out)
+        model = onnx.load(out)
+        model = onnx.shape_inference.infer_shapes(model, strict_mode=True)
+        onnx.checker.check_model(model, full_check=True)
+        onnx.save(model, out)
     else:
         raise ValueError("unknown output format '%s'" % format_)
 
