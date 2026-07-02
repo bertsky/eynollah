@@ -19,7 +19,7 @@ MODEL_VRAM_LIMITS = {
     "enhancement": 980, # due to bs 3
     "col_classifier": 210,
     "page": 618,
-    "textline": 1680, # 954 for bs 1
+    "textline": 1880, # 954 for bs 1
     "region_1_2": 1580,
     "region_fl_np": 1756,
     "table": 1818,
@@ -338,6 +338,14 @@ class EynollahModelZoo:
                     # 'cudnn_conv_algo_search': 'EXHAUSTIVE',
                     #'cudnn_conv_use_max_workspace': 0,
                     # 'do_copy_in_default_stream': True,
+                    # enable_cuda_graph
+                    # cudnn_conv1d_pad_to_nc1d
+                    # prefer_nhwc
+                    # tunable_op_enable
+                    # tunable_op_tuning_enable
+                    # tunable_op_max_tuning_duration_ms
+                    # use_ep_level_unified_stream
+                    # enable_skip_layer_norm_strict_mode
                     # ...
                 })] + providers
         if 'TensorrtExecutionProvider' in providers:
@@ -347,9 +355,28 @@ class EynollahModelZoo:
                     'device_id': gpu,
                     'trt_max_workspace_size': MODEL_VRAM_LIMITS[model_category] * 1024 * 1024,
                     # 'trt_fp16_enable': True,
-                    # 'trt_engine_cache_enable': True,
-                    # 'trt_timing_cache_enable': True,
+                    # trt_bf16_enable
+                    'trt_engine_cache_enable': True,
+                    'trt_timing_cache_enable': True,
                     # ...
+                    # trt_engine_hw_compatible
+                    # trt_engine_cache_path
+                    # trt_engine_cache_prefix
+                    # trt_timing_cache_path
+                    # trt_onnx_model_folder_path
+                    # trt_ep_context_file_path
+                    # trt_cuda_graph_enable
+                    # trt_profile_opt_shapes
+                    # trt_profile_min_shapes
+                    # trt_profile_max_shapes
+                    # trt_builder_optimization_level
+                    # trt_build_heuristics_enable
+                    # trt_sparsity_enable
+                    # trt_weight_stripped_engine_enable
+                    # trt_dla_core
+                    # trt_dla_enable
+                    # trt_min_subgraph_size
+                    # trt_ep_context_embed_mode
                 })] + providers
         provider0 = providers[0]
         if isinstance(provider0, tuple):
