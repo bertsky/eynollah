@@ -306,6 +306,7 @@ class EynollahModelZoo:
     def _load_onnx_model(self, model_category, model_path, device=''):
         import onnxruntime as ort
         import numpy as np
+        from ocrd_utils import config
 
         ort.set_default_logger_severity(3)
 
@@ -358,11 +359,11 @@ class EynollahModelZoo:
                     # trt_bf16_enable
                     'trt_engine_cache_enable': True,
                     'trt_timing_cache_enable': True,
+                    'trt_engine_cache_path': config.XDG_CONFIG_HOME,
+                    'trt_timing_cache_path': config.XDG_CONFIG_HOME,
                     # ...
                     # trt_engine_hw_compatible
-                    # trt_engine_cache_path
                     # trt_engine_cache_prefix
-                    # trt_timing_cache_path
                     # trt_onnx_model_folder_path
                     # trt_ep_context_file_path
                     # trt_cuda_graph_enable
