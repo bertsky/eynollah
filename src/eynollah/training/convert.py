@@ -68,12 +68,13 @@ def convert_cli(rebuild, format_, in_, out):
         ex.add_config(str(config_path))
         # some models deviate between training and inference
         ex.add_config(inference=True)
-        # make sure the local vocab file gets re-used
+        # OCR models: make sure the local vocab file gets re-used, if available
         characters_txt_file = model_path / "characters_org.txt"
-        with open(characters_txt_file, "r") as voc_file:
-            voc = json.load(voc_file)
-        ex.add_config(characters_txt_file=characters_txt_file)
-        ex.add_config(n_classes=len(voc) + 3)
+        if characters_txt_file.exists():
+            with open(characters_txt_file, "r") as voc_file:
+                voc = json.load(voc_file)
+            ex.add_config(characters_txt_file=characters_txt_file)
+            ex.add_config(n_classes=len(voc) + 3)
         # just retrieve final config (via pseudo-run)
         ex.main(lambda: 0)
         config = ex.run(options={'--loglevel': 'ERROR'}).config
@@ -98,7 +99,12 @@ def convert_cli(rebuild, format_, in_, out):
         model.export(out)
     elif format_ == "onnx":
         import tf2onnx
+        import onnx
         tf2onnx.convert.from_keras(model, opset=18, output_path=out)
+        model = onnx.load(out)
+        model = onnx.shape_inference.infer_shapes(model, strict_mode=True)
+        onnx.checker.check_model(model, full_check=True)
+        onnx.save(model, out)
     else:
         raise ValueError("unknown output format '%s'" % format_)
 

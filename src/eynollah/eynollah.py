@@ -901,7 +901,7 @@ class Eynollah:
         if N > 1:
             mean_y_diff = np.median(diff_cy)
             mean_x_diff = np.median(diff_cx)
-            count_hor = np.count_nonzero(np.diff(w_h_textline) > 0)
+            count_hor = np.count_nonzero(np.diff(w_h_textline, axis=0) > 0)
             count_ver = N - count_hor
         else:
             mean_y_diff = 0

@@ -21,6 +21,7 @@ from tensorflow.keras.layers import (
     LSTM,
     MaxPooling2D,
     MultiHeadAttention,
+    Permute,
     Reshape,
     UpSampling2D,
     ZeroPadding2D,
@@ -70,7 +71,7 @@ class CTCDecoder(Layer):
         ## but Keras greedy sometimes removes arbitrary letters
         # outputs, logits = tf.keras.backend.ctc_decode(inputs,
         #                                               lengths,
-        #                                               beam_width=20
+        #                                               beam_width=20,
         #                                               greedy=False, # True,
         #                                               # backend does not allow these kwargs
         #                                               #merge_repeated=False,
@@ -81,18 +82,17 @@ class CTCDecoder(Layer):
         inputs = tf.math.log(
             tf.transpose(inputs, perm=[1, 0, 2]) + tf.keras.backend.epsilon()
         )
-        # tf.nn.ctc_greedy_decoder() is not as precise
         # tf.compat.v1.nn.ctc_beam_search_decoder() also needs merge_repeated=False
-        decoded, logits = tf.nn.ctc_beam_search_decoder(
+        # tf.nn.ctc_beam_search_decoder() is not supported by ONNX, yet
+        # tf.nn.ctc_greedy_decoder() is not as precise, though:
+        decoded, logits = tf.nn.ctc_greedy_decoder(
             inputs,
             lengths,
-            beam_width=10,
-            top_paths=2,
         )
         # get top path for all sequences in batch
         decoded = decoded[0]
-        logits = logits[:, 0] - logits[:, 1]
-        probs = tf.exp(-logits)
+        logits = logits[:, 0]
+        probs = tf.exp(-logits / n_steps)
         # convert to dense
         outputs = tf.SparseTensor(decoded.indices, decoded.values,
                                   (n_samples, n_steps))
@@ -530,10 +530,12 @@ def cnn_rnn_ocr_model(input_height=None, input_width=None, n_classes=None, max_l
 
     addition_rnn = Bidirectional(LSTM(input_width, return_sequences=True, dropout=0.25))(addition)
 
-    out = Conv1D(max_len, 1, data_format="channels_first")(addition_rnn)
+    #out = Conv1D(max_len, 1, data_format="channels_first")(addition_rnn)
+    out = Permute((2, 1))(addition_rnn)
+    out = Conv1D(max_len, 1, data_format="channels_last")(out)
+    out = Permute((2, 1))(out)
     out = BatchNormalization(name="bn9")(out)
     out = Activation("relu", name="relu9")(out)
-    #out = Conv1D(n_classes, 1, activation='relu', data_format="channels_last")(out)
 
     out = Dense(n_classes, activation="softmax", name="dense2")(out)
 
@@ -552,8 +554,6 @@ def cnn_rnn_ocr_model(input_height=None, input_width=None, n_classes=None, max_l
         voc = char2num.get_vocabulary()
         num2char = StringLookup(vocabulary=voc, invert=True)
         output = num2char(out)
-        # avoid output tf.dtype=string → np.dtype=object (which cannot be shm-ed)
-        output = tf.io.decode_raw(output, tf.uint8, fixed_length=max(map(len, voc)))
 
         return Model((inputs, inputs_bin), (output, prob))
 
@@ -582,8 +582,6 @@ def cnn_rnn_ocr_model4inference(model, model_path):
         voc = char2num.get_vocabulary()
         num2char = StringLookup(vocabulary=voc, invert=True)
         output = num2char(output)
-        # avoid output tf.dtype=string → np.dtype=object (which cannot be shm-ed)
-        output = tf.io.decode_raw(output, tf.uint8, fixed_length=max(map(len, voc)))
         inputs = (inputs, inputs_bin)
         outputs = (output, prob)
         return Model(inputs, outputs)

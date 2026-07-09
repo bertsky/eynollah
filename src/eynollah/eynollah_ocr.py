@@ -296,13 +296,11 @@ class Eynollah_ocr(Eynollah):
                     probs[ver_index > 0][flipped_ver_is_better] = probs_ver[flipped_ver_is_better]
 
             def nooov(x):
-                return x != b'[UNK]'
+                if x == b'[UNK]':
+                    return b''
+                return x
             for pred, prob in zip(preds, probs):
-                text = b''.join(
-                    filter(nooov,
-                           map(bytes,
-                               (filter(None, char)
-                                for char in pred.tolist())))).decode('utf-8')
+                text = b''.join(map(nooov, pred.tolist())).decode('utf-8')
                 extracted_texts.append(text)
                 extracted_confs.append(prob)
         del cropped_lines_rgb

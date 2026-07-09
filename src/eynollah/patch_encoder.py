@@ -29,7 +29,13 @@ class Patches(layers.Layer):
         self.patch_size_y = patch_size_y
 
     def call(self, images):
-        batch_size = tf.shape(images)[0]
+        #batch_size = tf.shape(images)[0]
+        return tf.map_fn(self.call_single, images)
+
+    def call_single(self, image):
+        # avoid batched extract_patches: too much memory,
+        # and variable batch dim not supported by ONNX implementation
+        images = tf.expand_dims(image, axis=0)
         patches = tf.image.extract_patches(
             images=images,
             sizes=[1, self.patch_size_y, self.patch_size_x, 1],
@@ -37,8 +43,9 @@ class Patches(layers.Layer):
             rates=[1, 1, 1, 1],
             padding="VALID",
         )
-        patch_dims = patches.shape[-1]
-        return tf.reshape(patches, [batch_size, -1, patch_dims])
+        _, n_rows, n_cols, patch_dims = patches.shape
+        n_tiles = patches.shape[1] * patches.shape[2] #-1
+        return tf.reshape(patches, [1, n_tiles, patch_dims])
 
     def get_config(self):
         return dict(patch_size_x=self.patch_size_x,

@@ -38,7 +38,7 @@ $(MODELS_DST)/%: $(MODELS_SRC)/%
 		--in $< \
 		--format $(FORMAT) \
 		--out $@ \
-	2>&1 | tee $(notdir $<).$(FORMAT).log
+	> $(notdir $<).$(FORMAT).log 2>&1 || { cat $(notdir $<).$(FORMAT).log; false; }
 
 $(MODELS_DST)/%.keras: $(MODELS_SRC)/%
 	eynollah-training convert \
@@ -46,7 +46,7 @@ $(MODELS_DST)/%.keras: $(MODELS_SRC)/%
 		--in $< \
 		--format keras \
 		--out $@ \
-	2>&1 | tee $(notdir $<).keras.log
+	> $(notdir $<).keras.log 2>&1 || { cat $(notdir $<).keras.log; false; }
 
 $(MODELS_DST)/%.h5: $(MODELS_SRC)/%
 	eynollah-training convert \
@@ -54,20 +54,15 @@ $(MODELS_DST)/%.h5: $(MODELS_SRC)/%
 		--in $< \
 		--format hdf5 \
 		--out $@ \
-	2>&1 | tee $(notdir $<).hdf5.log
+	> $(notdir $<).hdf5.log 2>&1 || { cat $(notdir $<).hdf5.log; false; }
 
 $(MODELS_DST)/%.onnx: $(MODELS_SRC)/%
-	if jq -e '.task == "segmentation" and .backbone_type == "transformer"' $</config.json &>/dev/null; then \
-	echo skipping $@: vision transformer architecture currently does not work with ONNX; \
-	elif jq -e '.task == "cnn-rnn-ocr"' $</config.json &>/dev/null || test x$(findstring _ocr,$@) = x_ocr; then \
-	echo skipping $@: OCR CTC decoder does not work with ONNX; \
-	else \
 	eynollah-training convert \
 		$(and $(wildcard $</config.json),--rebuild) \
 		--in $< \
 		--format onnx \
 		--out $@ \
-	2>&1 | tee $(notdir $<).onnx.log; fi
+	> $(notdir $<).onnx.log 2>&1 || { cat $(notdir $<).onnx.log; false; }
 
 compare: 
 	for i in `find $(MODELS_DST) -mindepth 2`;do \
