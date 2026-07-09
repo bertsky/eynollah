@@ -724,7 +724,8 @@ def run(_config,
                         config,
                         dir_img,
                         dir_lab,
-                        char_to_num=char_to_num
+                        char_to_num=char_to_num,
+                        processor=processor,
                     )
                 )
 
