@@ -718,32 +718,21 @@ def run(_config,
             """
             Wraps preprocess_imgs in a format consumable by torch
             """
-            def __init__(self, config, dir_img, dir_lab, char_to_num):
-                self.samples = list(
-                    preprocess_imgs(
+            def __init__(self, config, dir_img, dir_lab):
+                self.samples = preprocess_imgs(
                         config,
                         dir_img,
                         dir_lab,
-                        char_to_num=char_to_num,
                         processor=processor,
                     )
-                )
 
             def __len__(self):
                 return len(self.samples)
 
-            def __getitem__(self, idx):
-                image, label = self.samples[idx]
+            def __iter__(self):
+                yield from self.samples
 
-                return {
-                    "image": torch.as_tensor(image, dtype=torch.float32),
-                    "label": torch.as_tensor(label, dtype=torch.long),
-                }
-        assert characters_txt_file
-        with open(characters_txt_file, 'r') as char_txt_f:
-            characters = json.load(char_txt_f)
-        char_to_num = StringLookup(vocabulary=list(characters), mask_token=None)
-        dataset = TransformerOCRTorchDataset(_config, dir_img, dir_lab, char_to_num)
+        dataset = TransformerOCRTorchDataset(_config, dir_img, dir_lab)
         data_loader = torch.utils.data.DataLoader(dataset, batch_size=1)
         train_dataset = data_loader.dataset
             
