@@ -208,9 +208,9 @@ class Predictor(mp.context.SpawnProcess):
                     else:
                         multi_output = False
                         results = np.split(make_shareable(result), len(jobs))
-                    #self.logger.debug("sharing result array for '%d'", jobid)
                     with ExitStack() as stack:
                         for jobid, result in zip(jobs, results):
+                            #self.logger.debug("sharing result array for '%d'", jobid)
                             # we don't know when the result will be received,
                             # but don't want to wait either, so track closing
                             # context per job, and wait for closable signal

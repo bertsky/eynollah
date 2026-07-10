@@ -328,6 +328,11 @@ class EynollahModelZoo:
                 gpu = int(device[3:] or "0")
         else:
             gpu = 0 # try first allowable
+        # make runtime-configurable
+        if override_providers := os.environ.get('EYNOLLAH_ONNX_EP', ''):
+            override_providers = override_providers.split(',')
+            providers = [provider for provider in providers
+                         if provider[:-17] in override_providers]
         # configure and prioritise
         if 'CUDAExecutionProvider' in providers:
             providers.remove('CUDAExecutionProvider')
