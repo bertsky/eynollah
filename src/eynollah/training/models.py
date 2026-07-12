@@ -85,9 +85,11 @@ class CTCDecoder(Layer):
         # tf.compat.v1.nn.ctc_beam_search_decoder() also needs merge_repeated=False
         # tf.nn.ctc_beam_search_decoder() is not supported by ONNX, yet
         # tf.nn.ctc_greedy_decoder() is not as precise, though:
-        decoded, logits = tf.nn.ctc_greedy_decoder(
+        decoded, logits = tf.nn.ctc_beam_search_decoder(
             inputs,
             lengths,
+            beam_width=10,
+            top_paths=1
         )
         # get top path for all sequences in batch
         decoded = decoded[0]

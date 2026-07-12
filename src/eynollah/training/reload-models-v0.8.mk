@@ -23,7 +23,9 @@ CURRENT_MODELS += eynollah-binarization_20210425
 CURRENT_MODELS += eynollah-column-classifier_20210425
 CURRENT_MODELS += eynollah-enhancement_20210425
 
-all: tf-serving
+# tf (SavedModel format) for training
+# onnx conversion for fast inference
+all: tf onnx
 
 tf-serving: $(CURRENT_MODELS:%=$(MODELS_DST)/%)
 tf: $(CURRENT_MODELS:%=$(MODELS_DST)/%)
@@ -31,8 +33,11 @@ keras: $(CURRENT_MODELS:%=$(MODELS_DST)/%.keras)
 hdf5: $(CURRENT_MODELS:%=$(MODELS_DST)/%.h5)
 onnx: $(CURRENT_MODELS:%=$(MODELS_DST)/%.onnx)
 
-$(MODELS_DST)/%: FORMAT = $(or $(filter tf,$(MAKECMDGOALS)), tf-serving)
+# distinguish tf from tf-serving: target pattern is the same,
+# so check if either is current goal, otherwise assumg tf
+$(MODELS_DST)/%: FORMAT = $(or $(filter tf-serving,$(MAKECMDGOALS)), tf)
 $(MODELS_DST)/%: $(MODELS_SRC)/%
+	$(if $(and $(filter tf-serving,$(FORMAT)),$(findstring _ocr,$@)),$(warning skipping $@: OCR CTC decoder fails in TF-Serving) : )\
 	eynollah-training convert \
 		$(and $(wildcard $</config.json),--rebuild) \
 		--in $< \
@@ -57,6 +62,7 @@ $(MODELS_DST)/%.h5: $(MODELS_SRC)/%
 	> $(notdir $<).hdf5.log 2>&1 || { cat $(notdir $<).hdf5.log; false; }
 
 $(MODELS_DST)/%.onnx: $(MODELS_SRC)/%
+	$(if $(findstring _ocr,$@),$(warning skipping $@: OCR CTC decoder is buggy in ONNX) : )\
 	eynollah-training convert \
 		$(and $(wildcard $</config.json),--rebuild) \
 		--in $< \
