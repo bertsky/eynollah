@@ -39,7 +39,8 @@ RUN ocrd ocrd-tool ocrd-tool.json dump-tools > $(dirname $(ocrd bashlib filename
 # prepackage ocrd-all-module-dir.json
 RUN ocrd ocrd-tool ocrd-tool.json dump-module-dirs > $(dirname $(ocrd bashlib filename))/ocrd-all-module-dir.json
 # install everything and reduce image size
-RUN make install EXTRAS=OCR && rm -rf /build/eynollah
+# FIXME: EXTRAS=OCR (should become extra Dockerfile based on ocrd/core-cuda-tf2 and ocrd/core-cuda-torch)
+RUN make install && rm -rf /build/eynollah
 # fixup for broken cuDNN installation (Torch may pull in version which is incompatible with Tensorflow)
 RUN pip install "nvidia-cudnn-cu12<9.10.2.21"
 # smoke test
