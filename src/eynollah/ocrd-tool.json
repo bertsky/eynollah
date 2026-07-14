@@ -85,6 +85,22 @@
       },
       "resources": [
         {
+          "url": "https://zenodo.org/records/21362927/files/models_inference_all_v0_9_0.zip",
+          "name": "models_inference_all_v0_9_0",
+          "type": "archive",
+	  "size": 5177204769,
+          "description": "Models for layout detection, reading order detection, textline detection, page extraction, column classification, table detection, binarization and image enhancement",
+          "version_range": ">= v0.9.0"
+        },
+        {
+          "url": "https://zenodo.org/records/21362927/files/models_inference_all_v0_9_0.zip",
+          "name": "models_inference_all_v0_9_0",
+          "type": "archive",
+	  "size": 5177204769,
+          "description": "Models for layout detection, reading order detection, textline detection, page extraction, column classification, table detection, binarization and image enhancement",
+          "version_range": ">= v0.9.0"
+        },
+        {
           "url": "https://zenodo.org/records/17727267/files/models_all_v0_8_0.zip",
           "name": "models_all_v0_8_0",
           "type": "archive",

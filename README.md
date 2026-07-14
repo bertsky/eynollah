@@ -74,11 +74,11 @@ When using Eynollah with Docker, see [`docker.md`](https://github.com/qurator-sp
 
 ## Models
 
-Pretrained models can be downloaded from [Zenodo](https://zenodo.org/records/17727267) or [Hugging Face](https://huggingface.co/SBB?search_models=eynollah).
+Pretrained models can be downloaded from [Zenodo](https://doi.org/10.5281/zenodo.17194823) or [Hugging Face](https://huggingface.co/SBB?search_models=eynollah).
 
-For fast runtime inference, download the ONNX models. 
+For fast runtime inference, download the ONNX models distributed as `models_inference_...zip`. 
 
-For finetuning training, download the original (Tensorflow / Torch) models
+For finetuning training, download the original (Tensorflow / Torch) models distributed as `models_training...zip`
 (and install the `[training]` extra).
 
 For model documentation and model cards, see [`models.md`](https://github.com/qurator-spk/eynollah/tree/main/docs/models.md).
