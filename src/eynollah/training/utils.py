@@ -1127,13 +1127,21 @@ def preprocess_img_ocr(
     if task == 'cnn-rnn-ocr':
         assert char_to_num, 'task is cnn-rnn-ocr, so preprocess_imgs_ocr should be passed "char_to_num"'
         lab = char_to_num(tf.strings.unicode_split(lab, input_encoding="UTF-8"))
-        yield_encoder = lambda x: x
+        def yield_encoder(x):
+            return x
     elif task == 'transformer-ocr':
+        import torch
         assert processor, 'task is transformer-ocr, so preprocess_imgs_ocr should be passed "processor"'
         # TODO make max_length configurable again, if deemed sensible
-        lab = [l if l != self.processor.tokenizer.pad_token_id else -100
-                for l in processor.tokenizer(lab, padding="max_length", max_length=128).input_ids]
-        yield_encoder = lambda img_, lab_: {"pixel_values": processor(Image.fromarray(img_), return_tensors="pt").pixel_values.squeeze(), "labels": torch.tensor(lab_)}
+        lab = [tok if tok != processor.tokenizer.pad_token_id else -100
+                for tok in processor.tokenizer(lab,
+                                               padding="max_length",
+                                               max_length=128
+                ).input_ids]
+        def yield_encoder(img_, lab_):
+            return {"pixel_values": processor(Image.fromarray(img_),
+                                              return_tensors="pt").pixel_values.squeeze(),
+                    "labels": torch.tensor(lab_)}
     yield yield_encoder(scale_image(img), lab)
     #to_yield = {"image": ret_x, "label": ret_y}
 
