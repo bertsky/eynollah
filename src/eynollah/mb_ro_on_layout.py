@@ -42,7 +42,6 @@ class Reorder(Eynollah):
         self.logger = logger or logging.getLogger('eynollah.mbreorder')
         self.model_zoo = model_zoo
         
-        self.model_zoo.load_model('reading_order')
         self.setup_models(device=device)
 
     def setup_models(self, device=''):

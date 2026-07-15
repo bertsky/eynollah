@@ -334,6 +334,8 @@ class EynollahModelZoo:
             providers = [provider for provider in providers
                          if provider[:-17] in override_providers]
         # configure and prioritise
+        if 'AzureExecutionProvider' in providers:
+            providers.remove('AzureExecutionProvider')
         if 'CUDAExecutionProvider' in providers:
             providers.remove('CUDAExecutionProvider')
             if gpu >= 0:

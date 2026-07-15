@@ -89,14 +89,14 @@
           "name": "models_inference_all_v0_9_0",
           "type": "archive",
 	  "size": 5177204769,
-          "description": "Models for layout detection, reading order detection, textline detection, page extraction, column classification, table detection, binarization and image enhancement",
+          "description": "Models for layout detection, reading order detection, textline detection, page extraction, column classification, table detection, binarization and image enhancement, as well as OCR",
           "version_range": ">= v0.9.0"
         },
         {
-          "url": "https://zenodo.org/records/21362927/files/models_inference_all_v0_9_0.zip",
-          "name": "models_inference_all_v0_9_0",
+          "url": "https://zenodo.org/records/21362927/files/models_inference_layout_v0_9_0.zip",
+          "name": "models_inference_layout_v0_9_0",
           "type": "archive",
-	  "size": 5177204769,
+	  "size": 1572255489,
           "description": "Models for layout detection, reading order detection, textline detection, page extraction, column classification, table detection, binarization and image enhancement",
           "version_range": ">= v0.9.0"
         },
