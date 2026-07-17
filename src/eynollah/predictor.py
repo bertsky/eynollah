@@ -1,5 +1,5 @@
 from contextlib import ExitStack
-from typing import List, Dict, Tuple, Union
+from typing import List, Dict, Sequence, Tuple, Union
 import logging
 import logging.handlers
 import multiprocessing as mp
@@ -41,10 +41,10 @@ class Predictor(mp.context.SpawnProcess):
     def input_shape(self):
         return self({})
 
-    def predict(self, data: ArrayT, verbose=0) -> ArrayT:
+    def predict(self, data: Union[Sequence[ArrayT], ArrayT], verbose=0) -> Union[Sequence[ArrayT], ArrayT]:
         return self(data)
 
-    def __call__(self, data: Union[ArrayT, Dict]) -> Union[ArrayT, Tuple]:
+    def __call__(self, data: Union[Sequence[ArrayT], ArrayT, Dict]) -> Union[ArrayT, Tuple]:
         # unusable as per python/cpython#79967
         #with self.jobid.get_lock():
         # would work, but not public:

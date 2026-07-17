@@ -24,7 +24,7 @@ MODEL_VRAM_LIMITS = {
     "region_fl_np": 1756,
     "table": 1818,
     "reading_order": 632,
-    "ocr": 850,
+    "ocr": 2400, # 850 for bs 8
 }
 
 class EynollahModelZoo:

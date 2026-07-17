@@ -83,7 +83,7 @@ class Eynollah_ocr(Eynollah):
         self.logger = logger if logger else logging.getLogger('eynollah.ocr')
         
         self.min_conf_value_of_textline_text = min_conf_value_of_textline_text
-        self.b_s = batch_size or 2 if tr_ocr else 8
+        self.b_s = batch_size or (2 if tr_ocr else 64)
 
         self.model_zoo = model_zoo
         self.setup_models(device=device)
