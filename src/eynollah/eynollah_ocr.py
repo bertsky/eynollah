@@ -5,6 +5,7 @@ import logging
 import logging.handlers
 from typing import List, Optional
 from pathlib import Path
+from itertools import groupby
 import os
 import gc
 import math
@@ -459,6 +460,18 @@ class Eynollah_ocr(Eynollah):
             ls_imgs = [os.path.join(dir_in, image_filename)
                        for image_filename in filter(is_image_filename,
                                                     os.listdir(dir_in))]
+            if dir_in_bin and dir_in_bin == dir_in:
+                # try filtering PNGs from rest
+                def pathstem(filename):
+                    return os.path.splitext(filename)[0]
+                def notpng(filenames):
+                    for filename in filenames:
+                        if not filename.lower().endswith(".png"):
+                            return filename
+                    return filenames[0]
+                ls_imgs = [notpng(files)
+                           for _, files in groupby(sorted(ls_imgs),
+                                                   key=pathstem)]
             with ProcessPoolExecutor(max_workers=num_jobs or None,
                                      mp_context=mp.get_context('fork'),
                                      initializer=_set_instance,
