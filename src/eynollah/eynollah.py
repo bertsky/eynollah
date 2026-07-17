@@ -2142,7 +2142,8 @@ class Eynollah:
                 conf_textregions=[0],
             )
             self.logger.info("Basic processing complete")
-            writer.write_pagexml(pcgts)
+            if writer.pcgts is None:
+                writer.write_pagexml(pcgts)
             self.logger.info("Job done in %.1fs", time.time() - t0)
             return
 
@@ -2221,7 +2222,8 @@ class Eynollah:
                 cont_page=cont_page,
                 polygons_seplines=[],
             )
-            writer.write_pagexml(pcgts)
+            if writer.pcgts is None:
+                writer.write_pagexml(pcgts)
             self.logger.info("Job done in %.1fs", time.time() - t0)
             return
 
@@ -2508,6 +2510,7 @@ class Eynollah:
                 conf_tables=conf_tables,
             )
 
-        writer.write_pagexml(pcgts)
+        if writer.pcgts is None:
+            writer.write_pagexml(pcgts)
         self.logger.info("Job done in %.1fs", time.time() - t0)
         return
