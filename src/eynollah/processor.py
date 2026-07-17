@@ -14,7 +14,8 @@ class EynollahProcessor(Processor):
 
     def setup(self) -> None:
         assert self.parameter
-        model_zoo = EynollahModelZoo(basedir=self.parameter['models'])
+        basedir = self.resolve_resource(self.parameter['models'])
+        model_zoo = EynollahModelZoo(basedir)
         self.eynollah = Eynollah(
             model_zoo=model_zoo,
             allow_enhancement=self.parameter['allow_enhancement'],
