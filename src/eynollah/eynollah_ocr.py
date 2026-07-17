@@ -455,7 +455,7 @@ class Eynollah_ocr(Eynollah):
                     return
                 
             img = cv2.imread(img_filename)
-
+            self.logger.info(img_filename)
             page_tree = ET.parse(page_file_in, parser = ET.XMLParser(encoding="utf-8"))
             page_ns = etree_namespace_for_element_tag(page_tree.getroot().tag)
 

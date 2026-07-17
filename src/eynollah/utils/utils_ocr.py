@@ -228,7 +228,7 @@ def break_curved_line_into_small_pieces_and_then_merge(img_rgb_curved, img_bin_c
     peaks_4 = return_splitting_point_of_image(img_rgb_curved)
     if len(peaks_4):
         imgs_tot = []
-        for left, right in pairwise([None] + peaks_4 + [None]):
+        for left, right in pairwise([None] + list(peaks_4) + [None]):
             img_rgb = img_rgb_curved[:, left: right]
             img_bin = img_bin_curved[:, left: right]
             mask = mask_curved[:, left: right]
