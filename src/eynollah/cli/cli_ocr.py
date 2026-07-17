@@ -48,6 +48,20 @@ import click
     is_flag=True,
 )
 @click.option(
+    "--num-jobs",
+    "-j",
+    default=0,
+    type=click.IntRange(min=0),
+    help="number of parallel images to process (for --dir_in mode; also helps better utilise GPU if available); 0 means based on autodetected number of processor cores",
+)
+@click.option(
+    "--halt-fail",
+    "-H",
+    default=0,
+    type=click.FloatRange(min=0),
+    help="abort when number of failed images exceeds this value (if >=1) or ratio of failed over total images exceeds this value (if <1); 0 means ignore failures",
+)
+@click.option(
     "--tr_ocr",
     "-trocr",
     is_flag=True,
@@ -83,6 +97,8 @@ def ocr_cli(
     out,
     dir_out_image_text,
     overwrite,
+    num_jobs,
+    halt_fail,
     tr_ocr,
     do_not_mask_with_textline_contour,
     batch_size,
@@ -108,4 +124,6 @@ def ocr_cli(
                      dir_xmls=dir_xmls,
                      dir_out_image_text=dir_out_image_text,
                      dir_out=out,
+                     num_jobs=num_jobs,
+                     halt_fail=halt_fail,
     )

@@ -1,13 +1,17 @@
 # FIXME: fix all of those...
 # pyright: reportOptionalSubscript=false
 
-from logging import Logger, getLogger
+import logging
+import logging.handlers
 from typing import List, Optional
 from pathlib import Path
 import os
 import gc
 import math
+import time
 from dataclasses import dataclass
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import cv2
 from cv2.typing import MatLike
@@ -37,6 +41,21 @@ from .utils.utils_ocr import (
     rotate_image_with_padding,
 )
 
+
+_instance = None
+def _set_instance(instance):
+    global _instance
+    _instance = instance
+def _run_single(*args, **kwargs):
+    logq = kwargs.pop('logq')
+    # replace all inherited handlers with queue handler
+    logging.root.handlers.clear()
+    _instance.logger.handlers.clear()
+    handler = logging.handlers.QueueHandler(logq)
+    logging.root.addHandler(handler)
+    return _instance.run_single(*args, **kwargs)
+
+
 # TODO: refine typing
 @dataclass
 class EynollahOcrResult:
@@ -54,13 +73,13 @@ class Eynollah_ocr(Eynollah):
         batch_size: int=0,
         do_not_mask_with_textline_contour: bool=False,
         min_conf_value_of_textline_text : float=0.3,
-        logger: Optional[Logger]=None,
+        logger: Optional[logging.Logger]=None,
         device: str = '',
     ):
         self.tr_ocr = tr_ocr
         # masking for OCR and GT generation, relevant for skewed lines and bounding boxes
         self.do_not_mask_with_textline_contour = do_not_mask_with_textline_contour
-        self.logger = logger if logger else getLogger('eynollah.ocr')
+        self.logger = logger if logger else logging.getLogger('eynollah.ocr')
         
         self.min_conf_value_of_textline_text = min_conf_value_of_textline_text
         self.b_s = batch_size or 2 if tr_ocr else 8
@@ -416,16 +435,17 @@ class Eynollah_ocr(Eynollah):
         self.logger.info("output filename: '%s'", out_file_ocr)
         page_tree.write(out_file_ocr, xml_declaration=True, method='xml', encoding="utf-8", default_namespace=None)
 
-    def run(
-        self,
-        *,
-        overwrite: bool = False,
-        dir_in: Optional[str] = None,
-        dir_in_bin: Optional[str] = None,
-        image_filename: Optional[str] = None,
-        dir_xmls: str,
-        dir_out_image_text: Optional[str] = None,
-        dir_out: str,
+    def run(self,
+            *,
+            overwrite: bool = False,
+            dir_in: str = "",
+            dir_in_bin: str = "",
+            image_filename: str = "",
+            dir_xmls: str,
+            dir_out_image_text: str = "",
+            dir_out: str,
+            num_jobs: int = 0,
+            halt_fail: float = 0,
     ):
         """
         Run OCR.
@@ -435,58 +455,115 @@ class Eynollah_ocr(Eynollah):
             dir_in_bin (str): Prediction with RGB and binarized images for selected pages, should not be the default
         """
         if dir_in:
+            t0_tot = time.time()
             ls_imgs = [os.path.join(dir_in, image_filename)
-                    for image_filename in filter(is_image_filename,
+                       for image_filename in filter(is_image_filename,
                                                     os.listdir(dir_in))]
+            with ProcessPoolExecutor(max_workers=num_jobs or None,
+                                     mp_context=mp.get_context('fork'),
+                                     initializer=_set_instance,
+                                     initargs=(self,)
+            ) as exe:
+                jobs = {}
+                mngr = mp.get_context('fork').Manager()
+                n_success = n_fail = 0
+                for img_filename in ls_imgs:
+                    logq = mngr.Queue()
+                    jobs[exe.submit(_run_single, img_filename,
+                                    dir_out=dir_out,
+                                    dir_xmls=dir_xmls,
+                                    dir_in_bin=dir_in_bin,
+                                    dir_out_image_text=dir_out_image_text,
+                                    overwrite=overwrite,
+                                    logq=logq)] = img_filename, logq
+                for job in as_completed(list(jobs)):
+                    img_filename, logq = jobs[job]
+                    loglistener = logging.handlers.QueueListener(
+                        logq, *self.logger.handlers, respect_handler_level=False)
+                    try:
+                        loglistener.start()
+                        job.result()
+                        n_success += 1
+                    except:
+                        self.logger.exception("Job %s failed", img_filename)
+                        n_fail += 1
+                        if (halt_fail and
+                            n_fail >= halt_fail * (len(jobs) if halt_fail < 1 else 1)):
+                            self.logger.fatal("terminating after %d failures", n_fail)
+                            for job in jobs:
+                                job.cancel()
+                            break
+                    finally:
+                        loglistener.stop()
+            self.logger.info("%d of %d jobs successful", n_success, len(jobs))
+            self.logger.info("All jobs done in %.1fs", time.time() - t0_tot)
         else:
             assert image_filename
-            ls_imgs = [image_filename]
+            self.run_single(image_filename,
+                            dir_xmls=dir_xmls,
+                            dir_out=dir_out,
+                            dir_in_bin=dir_in_bin,
+                            dir_out_image_text=dir_out_image_text,
+                            overwrite=overwrite)
 
-        for img_filename in ls_imgs:
-            file_stem = Path(img_filename).stem
-            page_file_in = os.path.join(dir_xmls, file_stem+'.xml')
-            out_file_ocr = os.path.join(dir_out, file_stem+'.xml')
-            
-            if os.path.exists(out_file_ocr):
-                if overwrite:
-                    self.logger.warning("will overwrite existing output file '%s'", out_file_ocr)
-                else:
-                    self.logger.warning("will skip input for existing output file '%s'", out_file_ocr)
-                    continue
-                
-            img = cv2.imread(img_filename)
-            self.logger.info(img_filename)
-            page_tree = ET.parse(page_file_in, parser = ET.XMLParser(encoding="utf-8"))
-            page_ns = etree_namespace_for_element_tag(page_tree.getroot().tag)
+    def run_single(self, 
+                   img_filename: str,
+                   dir_xmls: str,
+                   dir_out: str = "",
+                   dir_in_bin: str = "",
+                   dir_out_image_text: str = "",
+                   overwrite: bool = False,
+    ):
+        file_stem = Path(img_filename).stem
+        page_file_in = os.path.join(dir_xmls, file_stem + '.xml')
+        out_file_ocr = os.path.join(dir_out, file_stem + '.xml')
 
-            out_image_with_text = None
-            if dir_out_image_text:
-                out_image_with_text = os.path.join(dir_out_image_text, file_stem + '.png')
-
-            img_bin = None
-            if dir_in_bin:
-                img_bin = cv2.imread(os.path.join(dir_in_bin, file_stem+'.png'))
-
-
-            if self.tr_ocr:
-                result = self.run_trocr(
-                    img=img,
-                    page_tree=page_tree,
-                    page_ns=page_ns,
-                )
+        if os.path.exists(out_file_ocr):
+            if overwrite:
+                self.logger.warning("will overwrite existing output file '%s'", out_file_ocr)
             else:
-                result = self.run_cnn( 
-                    img=img,
-                    page_tree=page_tree,
-                    page_ns=page_ns,
-                    img_bin=img_bin,
-                )
+                self.logger.warning("will skip input for existing output file '%s'", out_file_ocr)
+                return
+        if not os.path.exists(page_file_in):
+            self.logger.error("will skip missing input file '%s'", page_file_in)
+            return
 
-            self.write_ocr(
-                result=result,
+        t0 = time.time()
+
+        img = cv2.imread(img_filename)
+        self.logger.info(img_filename)
+        page_tree = ET.parse(page_file_in, parser = ET.XMLParser(encoding="utf-8"))
+        page_ns = etree_namespace_for_element_tag(page_tree.getroot().tag)
+
+        out_image_with_text = None
+        if dir_out_image_text:
+            out_image_with_text = os.path.join(dir_out_image_text, file_stem + '.png')
+
+        img_bin = None
+        if dir_in_bin:
+            img_bin = cv2.imread(os.path.join(dir_in_bin, file_stem+'.png'))
+
+
+        if self.tr_ocr:
+            result = self.run_trocr(
                 img=img,
                 page_tree=page_tree,
                 page_ns=page_ns,
-                out_file_ocr=out_file_ocr,
-                out_image_with_text=out_image_with_text,
             )
+        else:
+            result = self.run_cnn( 
+                img=img,
+                page_tree=page_tree,
+                page_ns=page_ns,
+                img_bin=img_bin,
+            )
+
+        self.write_ocr(
+            result=result,
+            img=img,
+            page_tree=page_tree,
+            page_ns=page_ns,
+            out_file_ocr=out_file_ocr,
+            out_image_with_text=out_image_with_text,
+        )
+        self.logger.info("Job done in %.1fs", time.time() - t0)
