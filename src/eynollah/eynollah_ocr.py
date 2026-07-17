@@ -299,8 +299,9 @@ class Eynollah_ocr(Eynollah):
             ver_index = np.array(ver_index)
             imgs_rgb = np.stack(imgs_rgb)
             imgs_bin = np.stack(imgs_bin)
-            imgs_rgb_ver = imgs_rgb[ver_index > 0, ::-1, ::-1]
-            imgs_bin_ver = imgs_bin[ver_index > 0, ::-1, ::-1]
+            if ver_index.any():
+                imgs_rgb = np.append(imgs_rgb, imgs_rgb[ver_index > 0, ::-1, ::-1], axis=0)
+                imgs_bin = np.append(imgs_bin, imgs_bin[ver_index > 0, ::-1, ::-1], axis=0)
 
             # inference model now yields (char-bytes, line-prob) instead of vocidx-softmax
             # (so ctc_decode and inverse StringLookup are included)
@@ -308,7 +309,8 @@ class Eynollah_ocr(Eynollah):
             preds, probs = self.model_zoo.get('ocr').predict((imgs_rgb, imgs_bin), verbose=0)
             
             if ver_index.any():
-                preds_ver, probs_ver = self.model_zoo.get('ocr').predict((imgs_rgb_ver, imgs_bin_ver), verbose=0)
+                preds, preds_ver = np.split(preds, [-np.count_nonzero(ver_index)], axis=0)
+                probs, probs_ver = np.split(probs, [-np.count_nonzero(ver_index)], axis=0)
                 flipped_ver_is_better = np.flatnonzero(probs_ver > probs[ver_index > 0])
                 if len(flipped_ver_is_better):
                     self.logger.info("%d skewed lines perform better when flipped", len(flipped_ver_is_better))
