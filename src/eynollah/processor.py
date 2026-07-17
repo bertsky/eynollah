@@ -16,7 +16,7 @@ class EynollahProcessor(Processor):
         assert self.parameter
         basedir = self.resolve_resource(self.parameter['models'])
         overrides = []
-        for category, override in self.parameter['model_overrides'].items():
+        for category, override in self.parameter.get('model_overrides', {}).items():
             for variant, path in override.items():
                 path = self.resolve_resource(path)
                 overrides.append((category, variant, path))
