@@ -182,10 +182,11 @@ def get_orientation_moments(contour):
     
 def get_orientation_moments_of_mask(mask):
     mask=mask.astype('uint8')
-    contours, _ = cv2.findContours(mask[:,:,0], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    largest_contour = max(contours, key=cv2.contourArea) if contours else None
-    
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if not len(contours):
+        return 0
+    largest_contour = max(contours, key=cv2.contourArea)
     moments = cv2.moments(largest_contour)
     if moments["mu20"] - moments["mu02"] == 0:  # Avoid division by zero
         return 90 if moments["mu11"] > 0 else -90
