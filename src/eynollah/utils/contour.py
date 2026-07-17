@@ -354,13 +354,7 @@ def contour2polygon(contour: Union[np.ndarray, Sequence[Sequence[Sequence[Number
     polygon = Polygon([point[0] for point in contour])
     if dilate:
         polygon = polygon.buffer(dilate)
-    if polygon.geom_type == 'GeometryCollection':
-        # heterogeneous result: filter zero-area shapes (LineString, Point)
-        polygon = unary_union([geom for geom in polygon.geoms if geom.area > 0])
-    if polygon.geom_type == 'MultiPolygon':
-        # homogeneous result: construct convex hull to connect
-        polygon = join_polygons(polygon.geoms)
-    return make_valid(polygon)
+    return ensure_polygon(make_valid(polygon))
 
 def polygon2contour(polygon: Polygon) -> np.ndarray:
     polygon = np.array(polygon.exterior.coords[:-1], dtype=int)
@@ -371,15 +365,21 @@ def make_intersection(poly1, poly2):
     # post-process
     if interp.is_empty or interp.area == 0.0:
         return None
-    if interp.geom_type == 'GeometryCollection':
-        # heterogeneous result: filter zero-area shapes (LineString, Point)
-        interp = unary_union([geom for geom in interp.geoms if geom.area > 0])
-    if interp.geom_type == 'MultiPolygon':
-        # homogeneous result: construct convex hull to connect
-        interp = join_polygons(interp.geoms)
-    assert interp.geom_type == 'Polygon', interp.wkt
+    interp = ensure_polygon(interp)
     interp = make_valid(interp)
+    interp = ensure_polygon(interp)
     return interp
+
+def ensure_polygon(geometry):
+    if geometry.geom_type == 'GeometryCollection':
+        # heterogeneous result: filter zero-area shapes (LineString, Point)
+        geometry = unary_union([geom for geom in geometry.geoms if geom.area > 0])
+    if geometry.geom_type == 'MultiPolygon':
+        # homogeneous result: construct convex hull to connect
+        geometry = join_polygons(geometry.geoms)
+    poly = Polygon(geometry)
+    assert poly.geom_type == 'Polygon', poly.wkt
+    return poly
 
 def make_valid(polygon: Polygon) -> Polygon:
     """Ensures shapely.geometry.Polygon object is valid by repeated rearrangement/simplification/enlargement."""
