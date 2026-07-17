@@ -452,7 +452,7 @@ class Eynollah_ocr(Eynollah):
                     self.logger.warning("will overwrite existing output file '%s'", out_file_ocr)
                 else:
                     self.logger.warning("will skip input for existing output file '%s'", out_file_ocr)
-                    return
+                    continue
                 
             img = cv2.imread(img_filename)
             self.logger.info(img_filename)
