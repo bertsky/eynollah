@@ -30,7 +30,7 @@ def test_run_eynollah_ocr_filename(
             '-o', str(outfile.parent),
         ] + options,
         [
-            'output filename:'
+            str(infile)
         ]
     )
     assert outfile.exists()
@@ -57,7 +57,8 @@ def test_run_eynollah_ocr_directory(
             '-o', str(outdir),
         ],
         [
-            'output filename:'
+            'Job done in',
+            'All jobs done in',
         ]
     )
     assert len(list(outdir.iterdir())) == 2

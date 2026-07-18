@@ -24,7 +24,7 @@ MODEL_VRAM_LIMITS = {
     "region_fl_np": 1756,
     "table": 1818,
     "reading_order": 632,
-    "ocr": 2400, # 850 for bs 8
+    "ocr": 2600, # 850 for bs 8
 }
 
 class EynollahModelZoo:
@@ -390,7 +390,9 @@ class EynollahModelZoo:
         if isinstance(provider0, tuple):
             provider0 = provider0[0]
         self.logger.info("using %s with ONNX provider %s for model %s",
-                         "GPU %d" % gpu if gpu >= 0 else "CPU",
+                         "GPU %d" % gpu if (gpu >= 0 and not
+                                            provider0.startswith("CPU"))
+                         else "CPU",
                          provider0[:-17], model_category)
         model = ort.InferenceSession(
             model_path,

@@ -51,7 +51,7 @@ def _run_single(*args, **kwargs):
     logq = kwargs.pop('logq')
     # replace all inherited handlers with queue handler
     logging.root.handlers.clear()
-    _instance.logger.handlers.clear()
+    _instance.logger.parent.handlers.clear()
     handler = logging.handlers.QueueHandler(logq)
     logging.root.addHandler(handler)
     return _instance.run_single(*args, **kwargs)
@@ -494,7 +494,9 @@ class Eynollah_ocr(Eynollah):
                 for job in as_completed(list(jobs)):
                     img_filename, logq = jobs[job]
                     loglistener = logging.handlers.QueueListener(
-                        logq, *self.logger.handlers, respect_handler_level=False)
+                        logq, *self.logger.handlers,
+                        *self.logger.parent.handlers,
+                        respect_handler_level=False)
                     try:
                         loglistener.start()
                         job.result()
