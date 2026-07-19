@@ -1585,6 +1585,7 @@ def do_work_of_slopes_new_curved(
             mask_line = np.zeros_like(mask_parent)
             mask_line = cv2.fillPoly(mask_line, pts=[contour], color=1)
             mask_line = cv2.dilate(mask_line, KERNEL, iterations=5 if num_col == 0 else 4)
+            mask_line *= mask_parent
             # plt.subplot(1, 2, 1, title="parent mask")
             # plt.imshow(mask_parent)
             # plt.subplot(1, 2, 2, title="single textline")
