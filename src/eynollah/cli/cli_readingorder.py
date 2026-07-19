@@ -33,7 +33,7 @@ def readingorder_cli(ctx, input, dir_in, out, overwrite):
     """
     Generate ReadingOrder from ML model
     """
-    from ..mb_ro_on_layout import Reorder
+    from ..reorder import Reorder
     assert bool(input) != bool(dir_in), "Either -i (single input) or -di (directory) must be provided, but not both."
     orderer = Reorder(model_zoo=ctx.obj.model_zoo,
                       device=ctx.obj.device)
