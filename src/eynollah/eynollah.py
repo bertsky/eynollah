@@ -276,7 +276,7 @@ class Eynollah:
             img_new = np.copy(img)
             img_is_resized = False
         #elif conf_col < 0.8 and img_h_new >= 8000:
-        elif img_h_new >= 8000:
+        elif conf_col < 0.9 and img_h_new >= 8000:
             # don't upsample if too large
             img_new = np.copy(img)
             img_is_resized = False
