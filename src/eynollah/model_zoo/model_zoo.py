@@ -25,6 +25,7 @@ MODEL_VRAM_LIMITS = {
     "table": 1818,
     "reading_order": 632,
     "ocr": 2600, # 850 for bs 8
+    "extract_images": 954,
 }
 
 class EynollahModelZoo:
