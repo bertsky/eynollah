@@ -5,7 +5,7 @@ from ocrd import OcrdPageResultImage, Processor, OcrdPageResult
 
 from eynollah.model_zoo.model_zoo import EynollahModelZoo
 
-from .eynollah import Eynollah, EynollahXmlWriter
+from .eynollah import Eynollah
 
 class EynollahProcessor(Processor):
     @cached_property

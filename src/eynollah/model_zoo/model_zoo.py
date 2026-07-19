@@ -49,7 +49,7 @@ class EynollahModelZoo:
         self._overrides = []
         if model_overrides:
             self.override_models(*model_overrides)
-        self._loaded: Dict[str, Union[Predictor, AnyModel]] = {}
+        self._loaded: Dict[str, Predictor] = {}
 
     @property
     def model_overrides(self):
@@ -163,7 +163,7 @@ class EynollahModelZoo:
         model._name = model_category
         return model
 
-    def get(self, model_category: str) -> Union[Predictor, AnyModel]:
+    def get(self, model_category: str) -> Predictor:
         if model_category not in self._loaded:
             raise ValueError(f'Model "{model_category}" not previously loaded with "load_model(..)"')
         return self._loaded[model_category]
@@ -246,7 +246,7 @@ class EynollahModelZoo:
             self.logger.warning("no GPU device available")
         return device0
 
-    def _load_keras_model(self, model_category, model_path, device=''):
+    def _load_keras_model(self, model_category, model_path, device='') -> AnyModel:
         os.environ['TF_USE_LEGACY_KERAS'] = '1' # avoid Keras 3 after TF 2.15
         from ocrd_utils import tf_disable_interactive_logs
         tf_disable_interactive_logs()
@@ -280,7 +280,7 @@ class EynollahModelZoo:
 
         return model
 
-    def _load_serving_model(self, model_category, model_path, device=''):
+    def _load_serving_model(self, model_category, model_path, device='') -> AnyModel:
         from ocrd_utils import tf_disable_interactive_logs
         tf_disable_interactive_logs()
         import tensorflow as tf
@@ -304,7 +304,7 @@ class EynollahModelZoo:
 
         return model
 
-    def _load_onnx_model(self, model_category, model_path, device=''):
+    def _load_onnx_model(self, model_category, model_path, device='') -> AnyModel:
         import onnxruntime as ort
         import numpy as np
         from ocrd_utils import config
