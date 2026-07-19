@@ -2292,26 +2292,24 @@ class Eynollah:
 
         if not self.curved_line:
             self.logger.info("Mode: Light line detection")
-            self.get_slopes_and_deskew_new_light2(textregions,
-                                                  textline_mask_tot_ea_org,
-                                                  textline_confidence,
-                                                  slope_deskew)
-            self.get_slopes_and_deskew_new_light2(marginals,
-                                                  textline_mask_tot_ea_org,
-                                                  textline_confidence,
-                                                  slope_deskew)
+            args = (textline_mask_tot_ea_org,
+                    textline_confidence,
+                    slope_deskew)
+            self.get_slopes_and_deskew_new_light2(textregions, *args)
+            self.get_slopes_and_deskew_new_light2(marginals, *args)
             textregions = self.filter_small_textlines(textregions)
         else:
             self.logger.info("Mode: Curved line detection")
 
             textline_mask_tot_ea_erode = cv2.erode(textline_mask_tot_ea_org, kernel=KERNEL, iterations=2)
-            self.get_slopes_and_deskew_new_curved(textregions, textline_mask_tot_ea_erode,
-                                                  num_col_classifier, slope_deskew,
-                                                  image['name'])
+            args = (textline_mask_tot_ea_erode,
+                    textline_confidence,
+                    num_col_classifier,
+                    slope_deskew,
+                    image['name'])
+            self.get_slopes_and_deskew_new_curved(textregions, *args)
             small_textlines_to_parent_adherence2(textregions, area_factor, num_col_classifier)
-            self.get_slopes_and_deskew_new_curved(marginals, textline_mask_tot_ea_erode,
-                                                  num_col_classifier, slope_deskew,
-                                                  image['name'])
+            self.get_slopes_and_deskew_new_curved(marginals, *args)
             small_textlines_to_parent_adherence2(marginals, area_factor, num_col_classifier)
 
         textregions, textregions_d = self.filter_textregions_without_textlines(
