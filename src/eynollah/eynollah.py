@@ -2098,6 +2098,7 @@ class Eynollah:
 
             pcgts = writer.build_pagexml(
                 page=page,
+                img_bin=self.imread(image, binary=True) if self.input_binary else None,
                 num_col=num_col_classifier,
                 order_of_texts=[0],
                 textregions=textregions,
@@ -2170,6 +2171,7 @@ class Eynollah:
 
             pcgts = writer.build_pagexml(
                 page=page,
+                img_bin=self.imread(image, binary=True) if self.input_binary else None,
                 num_col=0,
             )
             if writer.pcgts is None:
@@ -2370,6 +2372,7 @@ class Eynollah:
         self.logger.info("Step 5/5: Output Generation")
         pcgts = writer.build_pagexml(
             page=page,
+            img_bin=self.imread(image, binary=True) if self.input_binary else None,
             num_col=num_col_classifier,
             order_of_texts=order_text,
             textregions=textregions,

@@ -1,5 +1,6 @@
 from functools import cached_property
 from typing import Optional
+from PIL import Image
 from ocrd_models import OcrdPage
 from ocrd import OcrdPageResultImage, Processor, OcrdPageResult
 
@@ -95,4 +96,9 @@ class EynollahProcessor(Processor):
                                  img_pil=page_image, pcgts=pcgts,
                                  # ocrd.Processor will handle OCRD_EXISTING_OUTPUT more flexibly
                                  overwrite=True)
+        if self.parameter['binarize'] and (img_alt := next(
+                (img for img in pcgts.Page.AlternativeImage
+                 if img.comments == "binarized"), None)):
+            result.images.append(OcrdPageResultImage(
+                Image.fromarray(img_alt.filename), '.IMG-BIN', img_alt))
         return result

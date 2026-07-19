@@ -252,6 +252,7 @@ class EynollahImageExtractor(Eynollah):
         images = [image for image in images if image.area]
         pcgts = writer.build_pagexml(
             page=page,
+            img_bin=self.imread(image, binary=True) if self.input_binary else None,
             num_col=num_col_classifier,
             images=images,
         )

@@ -4,12 +4,14 @@ from pathlib import Path
 import os.path
 import logging
 from typing import Optional, List, Tuple
+
 import numpy as np
 import cv2
 from shapely import affinity, clip_by_rect
 
 from ocrd_utils import points_from_polygon
 from ocrd_models.ocrd_page import (
+    AlternativeImageType,
     BorderType,
     CoordsType,
     TextLineType,
@@ -80,6 +82,13 @@ class EynollahXmlWriter:
 
     def write_pagexml(self, pcgts):
         self.logger.info("output filename: '%s'", self.output_filename)
+        if img_alt := next(
+                (img for img in pcgts.Page.AlternativeImage
+                 if img.comments == "binarized"
+                 and isinstance(img.filename, np.ndarray)), None):
+            img_alt_filename = self.output_filename[:-4] + '.bin.png'
+            cv2.imwrite(img_alt_filename, img_alt.filename)
+            img_alt.filename = os.path.basename(img_alt_filename)
         with open(self.output_filename, 'w') as f:
             f.write(to_xml(pcgts))
 
@@ -87,7 +96,8 @@ class EynollahXmlWriter:
         self,
         *,
         page: Region,
-        num_col=1,
+        img_bin: Optional[np.ndarray] = None,
+        num_col: int = 1,
         order_of_texts: List[int] = [],
         textregions: List[TextRegion] = [],
         textregions_h: List[TextRegion] = [],
@@ -104,6 +114,10 @@ class EynollahXmlWriter:
         pcgts = self.pcgts if self.pcgts else create_page_xml(
             self.image_filename, self.image_height, self.image_width)
         pcgts.Metadata.Comments = "num_col %d" % num_col
+        if img_bin is not None:
+            img_alt = AlternativeImageType(filename=img_bin, # will be replaced later
+                                           comments="binarized")
+            pcgts.Page.add_AlternativeImage(img_alt)
         pcgts.Page.set_custom('layout {num_col:%d;} ' % num_col)
         pcgts.Page.set_orientation(-page.skew)
         pcgts.Page.set_Border(BorderType(Coords=CoordsType(
