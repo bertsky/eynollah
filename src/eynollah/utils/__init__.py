@@ -11,7 +11,7 @@ try:
 except ImportError:
     plt = None
 import numpy as np
-from shapely import geometry, prepare, ops, plotting
+from shapely import geometry, prepared, ops
 import cv2
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
@@ -920,10 +920,10 @@ def small_textlines_to_parent_adherence2(
         if geometry.MultiPolygon(textlines_small_poly).intersects(
                 geometry.MultiPolygon(textlines_large_poly)):
             # FIXME: also consider confidence (less certain lines replaced by better ones)...
-            textlines_large_prep = [prepare(poly) for poly in textlines_large_poly]
+            textlines_large_prep = [prepared.prep(poly) for poly in textlines_large_poly]
             textlines_small_indexes_interlarge = []
             for small_poly in textlines_small_poly:
-                intersections = [small_poly.intersection(prep).area
+                intersections = [small_poly.intersection(prep.context).area
                                  if prep.intersects(small_poly) else 0
                                  for prep in textlines_large_prep]
                 idx_large = np.argmax(intersections)
