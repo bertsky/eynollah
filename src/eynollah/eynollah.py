@@ -74,7 +74,7 @@ from .utils import (
     is_image_filename,
     isNaN,
     crop_image_inside_box,
-    box2rect,
+    box2slice,
     find_num_col,
     otsu_copy_binary,
     seg_mask_label,
@@ -806,14 +806,13 @@ class Eynollah:
         return segmentation, confidence
 
     def extract_page(self, image):
-        cropped_page = img = image['img_res']
+        page_cropped = img = image['img_res']
         h, w = img.shape[:2]
-        page_coord = [0, h, 0, w]
-        cont_page = [np.array([[[0, 0]],
-                               [[w, 0]],
-                               [[w, h]],
-                               [[0, h]]])]
-        mask_page = np.ones((h, w), dtype=np.uint8)
+        page_cont = np.array([[[0, 0]],
+                              [[w, 0]],
+                              [[w, h]],
+                              [[0, h]]])
+        page_mask = np.ones((h, w), dtype=np.uint8)
         if not self.ignore_page_extraction:
             self.logger.debug("enter extract_page")
             #cv2.GaussianBlur(img, (5, 5), 0)
@@ -821,26 +820,13 @@ class Eynollah:
             contours, _ = cv2.findContours(prediction, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if len(contours):
                 areas = np.array(list(map(cv2.contourArea, contours)))
-                cnt = contours[np.argmax(areas)]
-                cont_page = [cnt]
-                x, y, w, h = cv2.boundingRect(cnt)
-                #if x <= 30:
-                    #w += x
-                    #x = 0
-                #if (self.image.shape[1] - (x + w)) <= 30:
-                    #w = w + (self.image.shape[1] - (x + w))
-                #if y <= 30:
-                    #h = h + y
-                    #y = 0
-                #if (self.image.shape[0] - (y + h)) <= 30:
-                    #h = h + (self.image.shape[0] - (y + h))
-                box = [x, y, w, h]
-                cropped_page, page_coord = crop_image_inside_box(box, img)
-                mask_page = np.zeros((h, w), dtype=np.uint8)
-                mask_page = cv2.fillPoly(mask_page, pts=[cnt - [x, y]], color=1)
-
+                page_cont = contours[np.argmax(areas)]
+                box = (x, y, w, h) = cv2.boundingRect(page_cont)
+                page_cropped = img[box2slice(box)]
+                page_mask = np.zeros((h, w), dtype=np.uint8)
+                page_mask = cv2.fillPoly(page_mask, pts=[page_cont - [x, y]], color=1)
             self.logger.debug("exit extract_page")
-        return page_coord, cont_page, cropped_page, mask_page
+        return page_cont, page_cropped, page_mask
 
     def early_page_for_num_of_column_classification(self, img):
         if not self.ignore_page_extraction:
@@ -2075,7 +2061,8 @@ class Eynollah:
         self.logger.info(f"Enhancement complete ({time.time() - t0:.1f}s)")
 
         t1 = time.time()
-        page_coord, cont_page, image_page, mask_page = self.extract_page(image)
+        page_cont, image_page, mask_page = self.extract_page(image)
+        page = Region(page_cont)
         if not self.ignore_page_extraction:
             self.logger.debug("Cropped page is %dx%d", image_page.shape[1], image_page.shape[0])
             self.logger.info("Cropping took %.1fs", time.time() - t1)
@@ -2102,7 +2089,7 @@ class Eynollah:
                 textlines_cont, textlines_conf,
                 textlines_cx, textlines_cy, textlines_w_h)
             textregions = [
-                TextRegion(cont_page, lines=[
+                TextRegion(page.contour, lines=[
                     Region(cont, conf=conf)
                     for cont, conf in zip(textlines_cont, textlines_conf)])
             ]
@@ -2110,9 +2097,8 @@ class Eynollah:
             self.logger.info("Basic processing complete")
 
             pcgts = writer.build_pagexml(
+                page=page,
                 num_col=num_col_classifier,
-                page_coord=page_coord,
-                page_contour=cont_page[0],
                 order_of_texts=[0],
                 textregions=textregions,
             )
@@ -2153,19 +2139,19 @@ class Eynollah:
         if (abs(slope_deskew) > 45 and
             ((text_regions_p == label_text).sum()) <= 0.3 * image_page.size):
             slope_deskew = 0
+        page.skew = slope_deskew
         if self.plotter:
             self.plotter.save_deskewed_image(slope_deskew, image['img'], image['name'])
         t3 = time.time()
         self.logger.info("Deskewing took %.1fs", t3 - t2)
 
         # FIXME: post-hoc cropping (remove when models support it, and replace image['img_res'] with image_page)
-        page_coord = np.array(page_coord)
-        page_box = (slice(*page_coord[:2]),
-                    slice(*page_coord[2:]))
+        page_box = cv2.boundingRect(page.contour)
         seplines_conf = get_region_confidences(seplines_cont, regions_confidence)
-        seplines = [Region(cont - page_coord[::2][::-1][np.newaxis, np.newaxis],
+        seplines = [Region(cont - [page_box[:2]],
                            conf=conf)
                     for cont, conf in zip(seplines_cont, seplines_conf)]
+        page_box = box2slice(page_box)
         regions_without_separators = regions_without_separators[page_box] * mask_page
         text_regions_p = text_regions_p[page_box] * mask_page
         textline_mask_tot_ea = textline_mask_tot_ea[page_box] * mask_page
@@ -2183,10 +2169,8 @@ class Eynollah:
             self.logger.info("No columns detected - generating empty PAGE-XML")
 
             pcgts = writer.build_pagexml(
+                page=page,
                 num_col=0,
-                page_coord=page_coord,
-                page_contour=cont_page[0],
-                page_skew=slope_deskew,
             )
             if writer.pcgts is None:
                 writer.write_pagexml(pcgts)
@@ -2385,10 +2369,8 @@ class Eynollah:
 
         self.logger.info("Step 5/5: Output Generation")
         pcgts = writer.build_pagexml(
+            page=page,
             num_col=num_col_classifier,
-            page_coord=page_coord,
-            page_contour=cont_page[0],
-            page_skew=slope_deskew,
             order_of_texts=order_text,
             textregions=textregions,
             textregions_h=textregions_h,

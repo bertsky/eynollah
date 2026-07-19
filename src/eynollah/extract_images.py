@@ -231,15 +231,16 @@ class EynollahImageExtractor(Eynollah):
         # Image Extraction Mode
         self.logger.info("Step 2/5: Image Extraction Mode")
         t1 = time.time()
-        page_coord, cont_page, image_page, mask_page = self.extract_page(image)
+        page_cont, image_page, _ = self.extract_page(image)
+        page = Region(page_cont)
         
         _, _, images_cont = self.get_early_layout(
             image['img_res'], num_col_classifier)
         self.logger.debug("Found %d images", len(images_cont))
 
         # FIXME: post-hoc cropping (remove when models support it, and replace image['img_res'] with image_page)
-        page_coord = np.array(page_coord)
-        images_cont = [cont - page_coord[::2][::-1][np.newaxis, np.newaxis]
+        page_box = cv2.boundingRect(page.contour)
+        images_cont = [cont - [page_box[:2]]
                        for cont in images_cont]
         if self.plotter:
             self.plotter.write_images_into_directory(images_cont, image_page,
@@ -250,9 +251,8 @@ class EynollahImageExtractor(Eynollah):
         # can be empty if above page frame
         images = [image for image in images if image.area]
         pcgts = writer.build_pagexml(
+            page=page,
             num_col=num_col_classifier,
-            page_coord=page_coord,
-            page_contour=cont_page[0],
             images=images,
         )
         writer.write_pagexml(pcgts)

@@ -5,6 +5,7 @@ import os.path
 import logging
 from typing import Optional, List, Tuple
 import numpy as np
+import cv2
 from shapely import affinity, clip_by_rect
 
 from ocrd_utils import points_from_polygon
@@ -85,10 +86,8 @@ class EynollahXmlWriter:
     def build_pagexml(
         self,
         *,
+        page: Region,
         num_col=1,
-        page_coord: Optional[List[int]] = None,
-        page_contour: Optional[np.ndarray] = None,
-        page_skew: float = 0.,
         order_of_texts: List[int] = [],
         textregions: List[TextRegion] = [],
         textregions_h: List[TextRegion] = [],
@@ -104,16 +103,13 @@ class EynollahXmlWriter:
         # create the file structure
         pcgts = self.pcgts if self.pcgts else create_page_xml(
             self.image_filename, self.image_height, self.image_width)
-        page = pcgts.get_Page()
         pcgts.Metadata.Comments = "num_col %d" % num_col
-        page.set_custom('layout {num_col:%d;} ' % num_col)
-        page.set_orientation(-page_skew)
-        if page_contour is not None:
-            page.set_Border(BorderType(Coords=CoordsType(points=self.calculate_points(page_contour))))
-        if page_coord is None:
-            offset = [0, 0]
-        else:
-            offset = [page_coord[2], page_coord[0]]
+        pcgts.Page.set_custom('layout {num_col:%d;} ' % num_col)
+        pcgts.Page.set_orientation(-page.skew)
+        pcgts.Page.set_Border(BorderType(Coords=CoordsType(
+            points=self.calculate_points(page.contour))))
+        x, y, w, h = cv2.boundingRect(page.contour)
+        offset = [x, y]
         counter = EynollahIdCounter()
         if len(order_of_texts):
             _counter_marginals = EynollahIdCounter(region_idx=len(order_of_texts))
@@ -121,7 +117,7 @@ class EynollahXmlWriter:
                                      for _ in marginals_left]
             id_of_marginalia_right = [_counter_marginals.next_region_id
                                       for _ in marginals_right]
-            xml_reading_order(page, order_of_texts, id_of_marginalia_left, id_of_marginalia_right)
+            xml_reading_order(pcgts.Page, order_of_texts, id_of_marginalia_left, id_of_marginalia_right)
 
         for region in textregions:
             textregion = TextRegionType(
@@ -131,7 +127,7 @@ class EynollahXmlWriter:
                 orientation=-region.skew
             )
             self.serialize_lines_in_region(textregion, offset, counter, region.lines)
-            page.add_TextRegion(textregion)
+            pcgts.Page.add_TextRegion(textregion)
 
         self.logger.debug('len(textregions_h) %s', len(textregions_h))
         for region in textregions_h:
@@ -142,7 +138,7 @@ class EynollahXmlWriter:
                 orientation=-region.skew
             )
             self.serialize_lines_in_region(textregion, offset, counter, region.lines)
-            page.add_TextRegion(textregion)
+            pcgts.Page.add_TextRegion(textregion)
 
         for region in drop_caps:
             textregion = TextRegionType(
@@ -152,7 +148,7 @@ class EynollahXmlWriter:
                 orientation=-region.skew
             )
             self.serialize_lines_in_region(textregion, offset, counter, [region])
-            page.add_TextRegion(textregion)
+            pcgts.Page.add_TextRegion(textregion)
 
         for region in marginals_left:
             textregion = TextRegionType(
@@ -162,7 +158,7 @@ class EynollahXmlWriter:
                 orientation=-region.skew
             )
             self.serialize_lines_in_region(textregion, offset, counter, region.lines)
-            page.add_TextRegion(textregion)
+            pcgts.Page.add_TextRegion(textregion)
 
         for region in marginals_right:
             textregion = TextRegionType(
@@ -172,17 +168,17 @@ class EynollahXmlWriter:
                 orientation=-region.skew
             )
             self.serialize_lines_in_region(textregion, offset, counter, region.lines)
-            page.add_TextRegion(textregion)
+            pcgts.Page.add_TextRegion(textregion)
 
         for region in images:
             image = ImageRegionType(
                 id=counter.next_region_id,
                 Coords=CoordsType(points=self.calculate_points(region.contour, offset, 2),
                                   conf=region.conf))
-            page.add_ImageRegion(image)
+            pcgts.Page.add_ImageRegion(image)
 
         for region in seplines:
-            page.add_SeparatorRegion(
+            pcgts.Page.add_SeparatorRegion(
                 SeparatorRegionType(
                     id=counter.next_region_id,
                     Coords=CoordsType(points=self.calculate_points(region.contour, offset, 2),
@@ -193,7 +189,7 @@ class EynollahXmlWriter:
                 id=counter.next_region_id,
                 Coords=CoordsType(points=self.calculate_points(region.contour, offset, 6),
                                   conf=region.conf))
-            page.add_TableRegion(table)
+            pcgts.Page.add_TableRegion(table)
 
         return pcgts
 
