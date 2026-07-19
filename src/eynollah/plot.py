@@ -1,10 +1,11 @@
+from typing import Optional
+import os.path
 try:
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
 except ImportError:
     plt = mpatches = None
 import numpy as np
-import os.path
 import cv2
 from scipy.ndimage import gaussian_filter1d
 
@@ -21,11 +22,11 @@ class EynollahPlotter:
         self,
         *,
         dir_out,
-        dir_of_all,
-        dir_save_page,
-        dir_of_deskewed,
-        dir_of_layout,
-        dir_of_cropped_images,
+        dir_of_all: Optional[str] = None,
+        dir_save_page: Optional[str] = None,
+        dir_of_deskewed: Optional[str] = None,
+        dir_of_layout: Optional[str] = None,
+        dir_of_cropped_images: Optional[str] = None,
     ):
         self.dir_out = dir_out
         self.dir_of_all = dir_of_all
@@ -172,6 +173,8 @@ class EynollahPlotter:
                 x, y, w, h = cv2.boundingRect(cont_ind)
                 box = [x, y, w, h]
                 image, _ = crop_image_inside_box(box, image_page)
+                if not image.size:
+                    continue
                 image = resize_image(image,
                                      int(image.shape[0] / scale_y),
                                      int(image.shape[1] / scale_x))

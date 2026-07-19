@@ -2,7 +2,8 @@ from typing import Iterable, List, Tuple
 from logging import getLogger
 import time
 import math
-from itertools import islice
+from dataclasses import dataclass, field
+from itertools import islice, compress
 
 try:
     import matplotlib.pyplot as plt
@@ -10,16 +11,18 @@ try:
 except ImportError:
     plt = None
 import numpy as np
-from shapely import geometry
+from shapely import geometry, prepare, ops, plotting
 import cv2
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
 from skimage import morphology
 
 from .is_nan import isNaN
-from .contour import (contours_in_same_horizon,
+from .contour import (contour2polygon,
+                      contours_in_same_horizon,
                       find_center_of_contours,
                       find_new_features_of_contours,
+                      polygon2contour,
                       return_contours_of_image,
                       return_parent_contours)
 
@@ -38,6 +41,32 @@ def batched(iterable, n):
     iterator = iter(iterable)
     while batch := tuple(islice(iterator, n)):
         yield batch
+
+def itemgetter(seq):
+    # replacement for operator.itemgetter
+    # (which is ambiguous about its return type:
+    #  single-item if 1 argument, tuple otherwise)
+    def fun(obj):
+        return list(obj[idx] for idx in seq)
+    return fun
+
+@dataclass
+class Region:
+    contour: np.ndarray
+    area: int = 0
+    cx: float = 0
+    cy: float = 0
+    skew: float = 0
+    conf: float = 0
+    def __post_init__(self):
+        self.area = cv2.contourArea(self.contour)
+        moments = cv2.moments(self.contour)
+        self.cx = moments['m10'] / (moments['m00'] or 1e-32)
+        self.cy = moments['m01'] / (moments['m00'] or 1e-32)
+
+@dataclass
+class TextRegion(Region):
+    lines: List[Region] = field(default_factory=list)
 
 def return_multicol_separators_x_start_end(
         regions_without_separators, peak_points, top, bot,
@@ -800,93 +829,16 @@ def fill_bb_of_drop_capitals(
 
     return full_prediction == label_drop_fl_model
 
-def check_any_text_region_in_model_one_is_main_or_header(
-        regions_model_1, regions_model_full,
-        contours_only_text_parent,
-        all_box_coord, all_found_textline_polygons,
-        slopes,
-        contours_only_text_parent_d_ordered, conf_contours):
-
-    cx_main, cy_main, x_min_main, x_max_main, y_min_main, y_max_main, y_corr_x_min_from_argmin = \
-        find_new_features_of_contours(contours_only_text_parent)
-
-    length_con=x_max_main-x_min_main
-    height_con=y_max_main-y_min_main
-
-    all_found_textline_polygons_main=[]
-    all_found_textline_polygons_head=[]
-
-    all_box_coord_main=[]
-    all_box_coord_head=[]
-
-    slopes_main=[]
-    slopes_head=[]
-
-    contours_only_text_parent_main=[]
-    contours_only_text_parent_head=[]
-
-    conf_contours_main=[]
-    conf_contours_head=[]
-
-    contours_only_text_parent_main_d=[]
-    contours_only_text_parent_head_d=[]
-
-    for ii, con in enumerate(contours_only_text_parent):
-        img = np.zeros(regions_model_1.shape[:2])
-        img = cv2.fillPoly(img, pts=[con], color=255)
-
-        all_pixels=((img == 255)*1).sum()
-        pixels_header=( ( (img == 255) & (regions_model_full[:,:,0]==2) )*1 ).sum()
-        pixels_main=all_pixels-pixels_header
-
-        if (pixels_header>=pixels_main) and ( (length_con[ii]/float(height_con[ii]) )>=1.3 ):
-            regions_model_1[:,:][(regions_model_1[:,:]==1) & (img == 255) ]=2
-            contours_only_text_parent_head.append(con)
-            if len(contours_only_text_parent_d_ordered):
-                contours_only_text_parent_head_d.append(contours_only_text_parent_d_ordered[ii])
-            all_box_coord_head.append(all_box_coord[ii])
-            slopes_head.append(slopes[ii])
-            all_found_textline_polygons_head.append(all_found_textline_polygons[ii])
-            conf_contours_head.append(None)
-        else:
-            regions_model_1[:,:][(regions_model_1[:,:]==1) & (img == 255) ]=1
-            contours_only_text_parent_main.append(con)
-            conf_contours_main.append(conf_contours[ii])
-            if len(contours_only_text_parent_d_ordered):
-                contours_only_text_parent_main_d.append(contours_only_text_parent_d_ordered[ii])
-            all_box_coord_main.append(all_box_coord[ii])
-            slopes_main.append(slopes[ii])
-            all_found_textline_polygons_main.append(all_found_textline_polygons[ii])
-
-        #print(all_pixels,pixels_main,pixels_header)
-
-    return (regions_model_1,
-            contours_only_text_parent_main,
-            contours_only_text_parent_head,
-            all_box_coord_main,
-            all_box_coord_head,
-            all_found_textline_polygons_main,
-            all_found_textline_polygons_head,
-            slopes_main,
-            slopes_head,
-            contours_only_text_parent_main_d,
-            contours_only_text_parent_head_d,
-            conf_contours_main,
-            conf_contours_head)
-
 def split_textregion_main_vs_head(
-        regions_model_1,
-        regions_model_full,
-        polygons_of_textregions,
-        polygons_of_textregions_d,
-        all_found_textline_polygons,
-        slopes,
-        conf_textregions,
+        regions_model_1: np.ndarray,
+        regions_model_full: np.ndarray,
+        textregions: List[Region],
+        textregions_d: List[Region],
         label_text=1,
         label_head_full=2,
         label_head_final=2,
         label_main_final=1,
-):
+) -> Tuple[np.ndarray, List[Region], List[Region], List[Region], List[Region]]:
 
     ### to make it faster
     h_o = regions_model_1.shape[0]
@@ -900,19 +852,12 @@ def split_textregion_main_vs_head(
                                     (regions_model_full.shape[1] // zoom,
                                      regions_model_full.shape[0] // zoom),
                                     interpolation=cv2.INTER_NEAREST)
-    contours_z = [contour // zoom
-                  for contour in polygons_of_textregions]
+    contours_z = [textregion.contour // zoom
+                  for textregion in textregions]
 
-    ###
-    _, _, x_min_main, x_max_main, y_min_main, y_max_main, _ = \
-        find_new_features_of_contours(contours_z)
-
-    length_con=x_max_main-x_min_main
-    height_con=y_max_main-y_min_main
-
-    main = []
-    head = []
+    main = np.ones(len(contours_z), dtype=bool)
     for ii, con in enumerate(contours_z):
+        width, height = cv2.boundingRect(con)[2:]
         parent = np.zeros_like(regions_model_1)
         parent = cv2.fillPoly(parent, pts=[con], color=1)
 
@@ -920,16 +865,14 @@ def split_textregion_main_vs_head(
         pixels_main = parent.sum() - pixels_head
 
         if (( pixels_head >= 0.6 * pixels_main and
-              length_con[ii] >= 1.3 * height_con[ii] and
-              length_con[ii] <= 3 * height_con[ii] ) or
+              width >= 1.3 * height and
+              width <= 3 * height ) or
             ( pixels_head >= 0.3 * pixels_main and
-              length_con[ii] >= 3 * height_con[ii] )):
+              width >= 3 * height )):
 
-            head.append(ii)
+            main[ii] = False
             label = label_head_final
-
         else:
-            main.append(ii)
             label = label_main_final
 
         regions_model_1[(regions_model_1 == label_text) & (parent > 0)] = label
@@ -941,35 +884,26 @@ def split_textregion_main_vs_head(
     #                                 interpolation=cv2.INTER_NEAREST)
     ###
 
-    def select(lis, indexes):
-        if not len(lis):
-            return []
-        return [lis[ind] for ind in indexes]
-
     return (regions_model_1,
-            select(polygons_of_textregions, main),
-            select(polygons_of_textregions, head),
-            select(polygons_of_textregions_d, main),
-            select(polygons_of_textregions_d, head),
-            select(all_found_textline_polygons, main),
-            select(all_found_textline_polygons, head),
-            select(slopes, main),
-            select(slopes, head),
-            select(conf_textregions, main),
-            select(conf_textregions, head),
+            list(compress(textregions, main)),
+            list(compress(textregions, ~main)),
+            list(compress(textregions_d, main)),
+            list(compress(textregions_d, ~main)),
     )
 
-def small_textlines_to_parent_adherence2(textlines_con, textline_mask, num_col):
+def small_textlines_to_parent_adherence2(
+        textregions: List[TextRegion],
+        area_factor: float,
+        num_col: int,
+) -> None:
     """
-    for each region, split up textlines into small and large areas;
+    for each region, split up textlines into small and large;
     keep only the ones with large area, but expanded (by merging
     contours) by all intersecting lines with small area
     """
     textlines_con_new = []
-    for region in textlines_con:
-        areas_cnt_text = np.array(list(map(cv2.contourArea, region)))
-        areas_cnt_text = areas_cnt_text / float(textline_mask.size)
-        indexes_textlines = np.arange(len(region))
+    for textregion in textregions:
+        areas = np.array([line.area for line in textregion.lines]) * area_factor
 
         if num_col == 0:
             min_area = 0.0004
@@ -977,52 +911,43 @@ def small_textlines_to_parent_adherence2(textlines_con, textline_mask, num_col):
             min_area = 0.0003
         else:
             min_area = 0.0001
-        indexes_textlines_small = indexes_textlines[areas_cnt_text < min_area]
-        indexes_textlines_large = indexes_textlines[areas_cnt_text >= min_area]
+        textlines_small = list(compress(textregion.lines, areas < min_area))
+        textlines_large = list(compress(textregion.lines, areas >= min_area))
+        textlines_small_poly = [contour2polygon(line.contour) for line in textlines_small]
+        textlines_large_poly = [contour2polygon(line.contour) for line in textlines_large]
+        textregion.lines = textlines_large
 
-        textlines_small = [region[i] for i in indexes_textlines_small]
-        textlines_large = [region[i] for i in indexes_textlines_large]
-
-        img_small = np.zeros_like(textline_mask)
-        img_small = cv2.fillPoly(img_small, pts=textlines_small, color=1)
-        img_large = np.zeros_like(textline_mask)
-        img_large = cv2.fillPoly(img_large, pts=textlines_large, color=1)
-        img_inter = img_small + img_large == 2
-        if np.any(img_inter):
-            indexes_textlines_inter = []
-            for contour_small in textlines_small:
-                intersections = []
-                for contour_large in textlines_large:
-                    img0_small = np.zeros_like(textline_mask)
-                    img0_small = cv2.fillPoly(img0_small, pts=[contour_small], color=1)
-                    img0_large = np.zeros_like(textline_mask)
-                    img0_large = cv2.fillPoly(img0_large, pts=[contour_large], color=1)
-                    img0_inter = img0_small + img0_large == 2
-                    intersections.append(np.count_nonzero(img0_inter))
+        if geometry.MultiPolygon(textlines_small_poly).intersects(
+                geometry.MultiPolygon(textlines_large_poly)):
+            # FIXME: also consider confidence (less certain lines replaced by better ones)...
+            textlines_large_prep = [prepare(poly) for poly in textlines_large_poly]
+            textlines_small_indexes_interlarge = []
+            for small_poly in textlines_small_poly:
+                intersections = [small_poly.intersection(prep).area
+                                 if prep.intersects(small_poly) else 0
+                                 for prep in textlines_large_prep]
                 idx_large = np.argmax(intersections)
-                if intersections[idx_large] <= 0:
+                if intersections[idx_large] == 0:
                     idx_large = -1
-                indexes_textlines_inter.append(idx_large)
-
-            indexes_textlines_inter = np.array(indexes_textlines_inter)
-            for idx_large in set(indexes_textlines_inter):
+                textlines_small_indexes_interlarge.append(idx_large)
+            textlines_small_indexes_interlarge = np.array(textlines_small_indexes_interlarge)
+            for idx_large in set(textlines_small_indexes_interlarge):
                 if idx_large < 0:
                     continue
-                img0_union = np.zeros_like(textline_mask)
-                img0_union = cv2.fillPoly(img0_union, pts=[textlines_large[idx_large]], color=255)
-                indexes_inter_small = np.flatnonzero(indexes_textlines_inter == idx_large)
-                for idx_small in indexes_inter_small:
-                    img0_union = cv2.fillPoly(img0_union, pts=[textlines_small[idx_small]], color=255)
-
-                _, thresh = cv2.threshold(img0_union, 0, 255, 0)
-                contours_union, _ = cv2.findContours(thresh.astype(np.uint8),
-                                                     cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                areas_union = np.array(list(map(cv2.contourArea, contours_union)))
-                contour_union = contours_union[np.argmax(areas_union)] #contours_union[0]
-                textlines_large[idx_large] = contour_union
-
-        textlines_con_new.append(textlines_large)
-    return textlines_con_new
+                large_poly = textlines_large_poly[idx_large]
+                indexes_small = np.flatnonzero(textlines_small_indexes_interlarge == idx_large)
+                for idx_small in indexes_small:
+                    large_poly = large_poly.union(textlines_small_poly[idx_small])
+                if large_poly.geom_type == 'GeometryCollection':
+                    # hetergeneous: filter lines and points
+                    large_poly = ops.unary_union([geom for geom in large_poly.geoms
+                                                  if geom.area > 0])
+                if large_poly.geom_type == 'MultiPolygon':
+                    # disjoint: pick largest part
+                    idx_large = np.argmax([geom.area for geom in large_poly.geoms])
+                    large_poly = large_poly.geoms[idx_large]
+                # replace original
+                textregion.lines[idx_large].contour = polygon2contour(large_poly)
 
 def order_of_regions(textline_mask, contours_main, contours_head, contours_drop, y_ref, x_ref):
     """
@@ -1051,7 +976,7 @@ def order_of_regions(textline_mask, contours_main, contours_head, contours_drop,
     total = len(contours_main) + len(contours_head) + len(contours_drop)
     assert total == 0 or np.any(textline_mask)
 
-    # ax1 = plt.subplot(2, 1, 1, title="order_of_regions textline_mask")
+    # ax1 = plt.subplot(1, 2, 1, title="order_of_regions textline_mask")
     # plt.imshow(textline_mask, aspect='auto')
     y = textline_mask.sum(axis=1) # horizontal projection profile
     y_padded = np.zeros(len(y) + 40)
@@ -1061,15 +986,21 @@ def order_of_regions(textline_mask, contours_main, contours_head, contours_drop,
     #z = gaussian_filter1d(y_padded, sigma_gaus)
     #peaks, _ = find_peaks(z, height=0)
     #peaks = peaks - 20
-    # ax2 = plt.subplot(2, 1, 2, title="smoothed horizontal projection", sharex=ax1)
-    # plt.plot(y)
+    # ax2 = plt.subplot(1, 2, 2, title="smoothed horizontal projection", sharey=ax1)
+    # ax2plot = plt.plot(y)[0]
+    # xdata = ax2plot.get_xdata()
+    # ydata = ax2plot.get_ydata()
+    # ax2plot.set_xdata(ydata)
+    # ax2plot.set_ydata(xdata)
+    # ax2.set_xlim(*ax1.get_xlim())
+    # ax2.set_ylim(*ax1.get_ylim())
     zneg_rev = np.max(y_padded) - y_padded
     zneg = np.zeros(len(zneg_rev) + 40)
     zneg[20 : len(zneg_rev) + 20] = zneg_rev
     zneg = gaussian_filter1d(zneg, sigma_gaus)
 
     peaks_neg, _ = find_peaks(zneg, height=0)
-    # plt.vlines(peaks_neg - 40, 0, None, label="peaks")
+    # plt.hlines(peaks_neg - 40, 0, textline_mask.shape[1], label="peaks")
     # plt.show()
     peaks_neg = peaks_neg - 20 - 20
 

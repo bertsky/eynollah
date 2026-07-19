@@ -1,4 +1,4 @@
-from typing import Sequence, Union
+from typing import List, Sequence, Union, Tuple
 from numbers import Number
 from functools import partial
 import itertools
@@ -167,26 +167,34 @@ def dilate_textregion_contours(all_found_textregion_polygons):
         [polygon2contour(contour2polygon(contour, dilate=6))
          for contour in all_found_textregion_polygons])
 
-def match_deskewed_contours(slope_deskew, contours_o, contours_d, shape_o, shape_d):
+def match_deskewed_contours(
+        slope_deskew: float,
+        regions_o, #: List[Region], # (cyclic import)
+        regions_d, #: List[Region], # (cyclic import)
+        shape_o: Tuple[int, int],
+        shape_d: Tuple[int, int],
+) -> np.ndarray:
     from . import ensure_array
 
-    cntareas_o = np.array([cv2.contourArea(contour) for contour in contours_o])
-    cntareas_d = np.array([cv2.contourArea(contour) for contour in contours_d])
+    centers_o = np.array([[region.cx, region.cy] for region in regions_o]) # [N, 2]
+    centers_d = np.array([[region.cx, region.cy] for region in regions_d]) # [N, 2]
+    cntareas_o = np.array([region.area for region in regions_o])
+    cntareas_d = np.array([region.area for region in regions_d])
     cntareas_o = cntareas_o / float(np.prod(shape_o[:2]))
     cntareas_d = cntareas_d / float(np.prod(shape_d[:2]))
 
-    contours_o = ensure_array(contours_o)
-    contours_d = ensure_array(contours_d)
+    contours_o = ensure_array([region.contour for region in regions_o])
+    contours_d = ensure_array([region.contour for region in regions_d])
 
     sort_o = np.argsort(cntareas_o)
     sort_d = np.argsort(cntareas_d)
+    centers_o = centers_o[sort_o].T # [2, N]
+    centers_d = centers_d[sort_d].T # [2, N]
     contours_o = contours_o[sort_o]
     contours_d = contours_d[sort_d]
     cntareas_o = cntareas_o[sort_o]
     cntareas_d = cntareas_d[sort_d]
 
-    centers_o = np.stack(find_center_of_contours(contours_o)) # [2, N]
-    centers_d = np.stack(find_center_of_contours(contours_d)) # [2, N]
     center0_o = centers_o[:, -1:] # [2, 1]
     center0_d = centers_d[:, -1:] # [2, 1]
 
