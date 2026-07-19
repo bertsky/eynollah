@@ -22,16 +22,23 @@ import click
     type=click.Path(exists=True, file_okay=False),
     required=True,
 )
+@click.option(
+    "--overwrite",
+    "-O",
+    help="overwrite (instead of skipping) if output xml exists",
+    is_flag=True,
+)
 @click.pass_context
-def readingorder_cli(ctx, input, dir_in, out):
+def readingorder_cli(ctx, input, dir_in, out, overwrite):
     """
-    Generate ReadingOrder with a ML model
+    Generate ReadingOrder from ML model
     """
     from ..mb_ro_on_layout import Reorder
     assert bool(input) != bool(dir_in), "Either -i (single input) or -di (directory) must be provided, but not both."
     orderer = Reorder(model_zoo=ctx.obj.model_zoo,
                       device=ctx.obj.device)
-    orderer.run(xml_filename=input,
+    orderer.run(overwrite=overwrite,
+                xml_filename=input,
                 dir_in=dir_in,
                 dir_out=out,
     )
