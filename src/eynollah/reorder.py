@@ -43,14 +43,32 @@ class Reorder(Eynollah):
             model_zoo: EynollahModelZoo,
             logger : Optional[logging.Logger] = None,
             device: str = '',
+            model_based: bool = True,
+            # also expose these on CLI?
+            ignore_page_extraction: bool = False,
+            right2left : bool = False,
+            input_binary: bool = False,
+            num_col_upper: int = 0,
+            num_col_lower: int = 0,
     ):
-        self.logger = logger or logging.getLogger('eynollah.mbreorder')
+        self.logger = logger or logging.getLogger('eynollah.reorder')
+        self.model_based = model_based
+        self.ignore_page_extraction = ignore_page_extraction
+        self.tables = True # for find_num_col
+        self.right2left = right2left
+        self.input_binary = input_binary
+        self.num_col_upper = num_col_upper
+        self.num_col_lower = num_col_lower
         self.model_zoo = model_zoo
-        
         self.setup_models(device=device)
 
     def setup_models(self, device=''):
-        loadable = ['reading_order']
+        if self.model_based:
+            loadable = ['reading_order']
+        else:
+            loadable = ['page', 'col_classifier']
+            if self.input_binary:
+                loadable.append('binarization')
         self.model_zoo.load_models(*loadable, device=device)
         for model in loadable:
             self.logger.debug("model %s has input shape %s", model,
@@ -64,9 +82,10 @@ class Reorder(Eynollah):
                  label_seps=6,
                  label_marg=8,
                  label_drop=4,
+                 label_tabs=10,
     ):
-        tree1 = ET.parse(xml_file, parser = ET.XMLParser(encoding='utf-8'))
-        root1=tree1.getroot()
+        tree1 = ET.parse(xml_file, parser=ET.XMLParser(encoding='utf-8'))
+        root1 = tree1.getroot()
         alltags=[elem.tag for elem in root1.iter()]
         link=alltags[0].split('}')[0]+'}'
 
@@ -76,6 +95,8 @@ class Reorder(Eynollah):
         page = root1.find(link+'Page')
         height = int(page.get('imageHeight', 0))
         width = int(page.get('imageWidth', 0))
+        skew = -float(page.get('orientation', 0))
+        img_filename = page.get('imageFilename', '')
 
         for jj in root1.iter(link+'RegionRefIndexed'):
             index_tot_regions.append(jj.attrib['index'])
@@ -97,6 +118,7 @@ class Reorder(Eynollah):
 
         seps_cont = []
         imgs_cont = []
+        tabs_cont = []
         text_para_cont = []
         text_para_ids = []
         text_drop_cont = []
@@ -136,6 +158,9 @@ class Reorder(Eynollah):
                     text_para_cont.append(cont)
                     text_para_ids.append(id_)
 
+            elif nn.tag.endswith('}TableRegion'):
+                tabs_cont.append(cont)
+
             elif nn.tag.endswith('}GraphicRegion'):
                 imgs_cont.append(cont)
 
@@ -150,6 +175,7 @@ class Reorder(Eynollah):
         img = cv2.fillPoly(img, pts=text_head_cont, color=label_head)
         img = cv2.fillPoly(img, pts=text_marg_cont, color=label_marg)
         img = cv2.fillPoly(img, pts=text_drop_cont, color=label_drop)
+        img = cv2.fillPoly(img, pts=tabs_cont, color=label_tabs)
         img = cv2.fillPoly(img, pts=imgs_cont, color=label_imgs)
         img = cv2.fillPoly(img, pts=seps_cont, color=label_seps)
 
@@ -158,7 +184,7 @@ class Reorder(Eynollah):
                 text_para_ids, text_head_ids, text_drop_ids,
                 text_para_cont, text_head_cont, text_drop_cont,
                 tot_region_ref,
-                width, height,
+                width, height, skew, img_filename,
                 index_tot_regions,
                 img)
 
@@ -166,6 +192,7 @@ class Reorder(Eynollah):
             overwrite: bool = False,
             xml_filename: Optional[str] = None,
             dir_in: Optional[str] = None,
+            dir_imgs: Optional[str] = None,
             dir_out: Optional[str] = None,
     ):
         """
@@ -184,15 +211,21 @@ class Reorder(Eynollah):
             raise ValueError("run requires either a single image filename or a directory")
 
         for xml_filename in ls_xmls:
-            self.run_single(xml_filename, dir_out=dir_out, overwrite=overwrite)
+            self.run_single(xml_filename,
+                            dir_out=dir_out,
+                            dir_imgs=dir_imgs,
+                            overwrite=overwrite)
 
         if dir_in:
             self.logger.info("All jobs done in %.1fs", time.time() - t0_tot)
 
     def run_single(self,
                    xml_filename: str,
+                   dir_imgs: Optional[str] = None,
                    dir_out: Optional[str] = None,
-                   overwrite: bool = False
+                   overwrite: bool = False,
+                   label_imgs=5,
+                   label_seps=6,
     ) -> None:
         self.logger.info(xml_filename)
         t0 = time.time()
@@ -203,7 +236,7 @@ class Reorder(Eynollah):
          para_ids, head_ids, drop_ids,
          para_cont, head_cont, drop_cont,
          _, # FIXME: do not ignore existing RO (tot_region_ref)
-         width, height,
+         width, height, skew, img_filename,
          _, # FIXME: do not ignore existing RO (index_tot_regions)
          region_labels) = self.read_xml(xml_filename)
 
@@ -211,11 +244,83 @@ class Reorder(Eynollah):
 
         self.logger.debug("ordering %d paragraphs, %d headings and %d drop-capitals",
                           len(para_ids), len(head_ids), len(drop_ids))
-        order_text = self.do_order_of_regions_with_model(
-            para_cont,
-            head_cont,
-            drop_cont,
-            region_labels)
+        if self.model_based:
+            order_text = self.do_order_of_regions_with_model(
+                para_cont,
+                head_cont,
+                drop_cont,
+                region_labels)
+        else:
+            if img_filename and (
+                    os.path.exists(img_path := img_filename) or
+                    os.path.exists(img_path := os.path.join('..', img_filename)) or
+                    dir_imgs and
+                    os.path.exists(img_path := os.path.join(dir_imgs, img_filename)) or
+                    dir_imgs and
+                    os.path.exists(img_path := os.path.join(dir_imgs, os.path.basename(img_filename)))):
+                img_filename = img_path
+            else:
+                xml_basename = Path(xml_filename).with_suffix('')
+                def try_suffixes(basename, suffixes):
+                    for suf in suffixes:
+                        if (filename := basename.with_suffix(suf)).exists():
+                            yield filename
+                        elif dir_imgs and (filename := (dir_imgs / basename).with_suffix(suf)).exists():
+                            yield filename
+                img_filename = next(try_suffixes(xml_basename,
+                                                 ['.tif', '.TIF',
+                                                  '.jpg', '.JPG',
+                                                  '.png', '.PNG',
+                                                  '.jpeg', '.gif']))
+            # load and analyse image
+            image = self.cache_images(image_filename=img_filename)
+            _, num_col, _ = self.resize_and_enhance_image_with_column_classifier(image)
+            if image['img_res'].shape[:2] != region_labels.shape:
+                # image was resized by col-classifier
+                # so bring label map to same size
+                # (order rules have similar expectations)
+                region_labels = resize_image(region_labels, *image['img_res'].shape[:2])
+                scale_factor = np.array([[image['scale_x'], image['scale_y']]])
+                para_cont = [(cont * scale_factor).astype(int) for cont in para_cont]
+                head_cont = [(cont * scale_factor).astype(int) for cont in head_cont]
+                drop_cont = [(cont * scale_factor).astype(int) for cont in drop_cont]
+
+            # in Eynollah: regions_without_separators
+            nonsep_labels = np.copy(region_labels)
+            nonsep_labels[label_seps] = 0
+            nonsep_labels[label_imgs] = 0
+
+            # deskew
+            if np.abs(skew) >= 0.13: # in Eynollah: SLOPE_THRESHOLD
+                _, region_labels, nonsep_labels = self.get_deskewed_masks(
+                    skew, np.zeros((1, 1)), region_labels, nonsep_labels)
+                # also deskew contours
+                # (directly instead of match_deskewed_contours)
+                # rotate_image() does not enlarge canvas,
+                # so our calculation must compensate
+                h_o, w_o = image['img_res'].shape[:2]
+                M = cv2.getRotationMatrix2D((0.5 * w_o, 0.5 * h_o), -skew, 1.0)[:2, :2]
+                cos = np.abs(M[0, 0])
+                sin = np.abs(M[0, 1])
+                off = np.array([[0.5 * (w_o * cos + h_o * sin - w_o),
+                                 0.5 * (w_o * sin + h_o * cos - h_o)]],
+                               dtype=int)
+                if skew > 0:
+                    off[0, 1] = -off[0, 1]
+                else:
+                    off[0, 0] = -off[0, 0]
+                para_cont = [np.dot(cont, M).astype(int) - off for cont in para_cont]
+                head_cont = [np.dot(cont, M).astype(int) - off for cont in head_cont]
+                drop_cont = [np.dot(cont, M).astype(int) - off for cont in drop_cont]
+
+            order_text = self.do_order_of_regions_heuristic(
+                para_cont,
+                head_cont,
+                drop_cont,
+                region_labels,
+                nonsep_labels,
+                num_col,
+                False) # in Eynollah: erosion_hurts
 
         all_text_ids = all_text_ids[order_text]
 
@@ -243,7 +348,9 @@ class Reorder(Eynollah):
                   page.findall(link+'PrintSpace'))
         page.insert(pos, ro_new)
 
-        tree_xml.write(os.path.join(dir_out or "", file_name + '.xml'),
+        output_filename = os.path.join(dir_out or "", file_name + '.xml')
+        self.logger.info("output filename: '%s'", output_filename)
+        tree_xml.write(output_filename,
                        xml_declaration=True,
                        method='xml',
                        encoding="utf-8",
