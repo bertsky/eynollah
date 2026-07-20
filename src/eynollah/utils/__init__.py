@@ -1219,7 +1219,7 @@ def find_number_of_columns_in_document(
         separator_mask: np.ndarray,
         num_col_classifier: int,
         tables: bool,
-        contours_h: List[np.ndarray] = None,
+        contours_h: List[np.ndarray] = [],
         logger=None
 ) -> Tuple[int, List[int], np.ndarray, List[int], np.ndarray]:
     """
@@ -1230,7 +1230,7 @@ def find_number_of_columns_in_document(
       * separator_mask: mask of (separator-only) region labels
       * num_col_classifier: predicted (expected) number of columns of the page
       * tables: whether tables may be present
-      * contours_h: polygons of potential headings (serving as additional horizontal separators)
+      * contours_h: contours of potential headings (serving as additional horizontal separators)
       * logger
 
     Returns: a tuple of
@@ -1353,7 +1353,7 @@ def find_number_of_columns_in_document(
     matrix_of_seps_ch[len(cy_seps_hor):,8]=dist_y_ver
     matrix_of_seps_ch[len(cy_seps_hor):,9]=1
 
-    if contours_h is not None:
+    if len(contours_h):
         _, dist_x_head, x_min_head, x_max_head, cy_head, _, y_min_head, y_max_head, _ = \
             find_features_of_lines(contours_h)
         matrix_l_n = np.zeros((len(cy_head), matrix_of_seps_ch.shape[1]), dtype=int)
@@ -1382,7 +1382,7 @@ def find_number_of_columns_in_document(
                                   (x_max_seps_hor >= .84 * width)]
     cy_seps_splitters = np.append(cy_seps_splitters, special_separators)
 
-    if contours_h is not None:
+    if len(contours_h):
         y_min_splitters_head = y_min_head[(x_min_head <= .16 * width) &
                                           (x_max_head >= .84 * width)]
         y_max_splitters_head = y_max_head[(x_min_head <= .16 * width) &

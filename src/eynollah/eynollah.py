@@ -1617,7 +1617,7 @@ class Eynollah:
             num_col_classifier,
             erosion_hurts,
             regions_without_separators,
-            contours_h=None,
+            contours_h=[],
             label_seps_fl=6,
     ):
         if not erosion_hurts:
@@ -1821,6 +1821,29 @@ class Eynollah:
             return org_contours_indexes
         else:
             return ordered
+
+    def do_order_of_regions_heuristic(
+            self,
+            textregions_cont,
+            textregions_h_cont,
+            drop_caps_cont,
+            text_regions_p,
+            regions_without_separators,
+            num_col_classifier,
+            erosion_hurts,
+    ):
+        boxes = self.run_boxes_order(text_regions_p,
+                                     num_col_classifier,
+                                     erosion_hurts,
+                                     regions_without_separators,
+                                     contours_h=textregions_h_cont)
+        order_text = self.do_order_of_regions(
+            textregions_cont,
+            textregions_h_cont,
+            drop_caps_cont,
+            boxes,
+            regions_without_separators) #textline_mask_tot_ea)
+        return order_text
 
     def filter_small_regions(self, textregions: List[Region], textregions_d: List[Region], area_factor: float, marginals: List[Region]) -> Tuple[List[Region], List[Region]]:
         """
@@ -2342,31 +2365,28 @@ class Eynollah:
             self.logger.info("Using machine-based detection")
             order_text = self.do_order_of_regions_with_model(
                 contours(textregions),
-                contours(textregions_h),
+                contours(textregions_h) if not self.headers_off else [],
                 contours(drop_caps),
                 text_regions_p)
         else:
             if np.abs(slope_deskew) < SLOPE_THRESHOLD:
-                boxes = self.run_boxes_order(text_regions_p, num_col_classifier, erosion_hurts,
-                                             regions_without_separators,
-                                             contours_h=(None if self.headers_off or not self.full_layout
-                                                         else contours(textregions_h)))
-                order_text = self.do_order_of_regions(
+                order_text = self.do_order_of_regions_heuristic(
                     contours(textregions),
-                    contours(textregions_h),
+                    contours(textregions_h) if not self.headers_off else [],
                     contours(drop_caps),
-                    boxes, regions_without_separators) #textline_mask_tot_ea)
+                    text_regions_p,
+                    regions_without_separators,
+                    num_col_classifier,
+                    erosion_hurts)
             else:
-                boxes_d = self.run_boxes_order(text_regions_p_d, num_col_classifier, erosion_hurts,
-                                               regions_without_separators_d,
-                                               contours_h=(None if self.headers_off or not self.full_layout
-                                                           else contours(textregions_h_d)))
-
-                order_text = self.do_order_of_regions(
+                order_text = self.do_order_of_regions_heuristic(
                     contours(textregions_d),
-                    contours(textregions_h_d),
+                    contours(textregions_h_d) if not self.headers_off else [],
                     contours(drop_caps),
-                    boxes_d, regions_without_separators_d) #textline_mask_tot_ea_d)
+                    text_regions_p_d,
+                    regions_without_separators_d,
+                    num_col_classifier,
+                    erosion_hurts)
         self.logger.info(f"Detection of reading order took {time.time() - t_order:.1f}s")
 
         self.logger.info("Step 5/5: Output Generation")
