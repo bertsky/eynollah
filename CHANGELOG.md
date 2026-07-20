@@ -5,6 +5,81 @@ Versioned according to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+Fixed:
+
+  - CLIs for `reorder` and OCR: make work again
+  - more robust predictor/model shutdown
+  - :fire: `do_order_of_regions`: rm overcautious assertion
+  - :fire: correctly order textlines again
+  - make `utils.contours.make_valid()` even more robust
+  - :fire: region-wise deskewing w/o `-cl`: typo when only single usable textline
+  - Keras OCR (`cnn-rnn-ocr`): 
+    * `training.models`: correct config names for height and width
+    * `utils_ocr`: rare errors
+    * `run_single()` w/o `overwrite`: skip instead of return
+  - OCR-D layout processor:
+    * :fire: resolve filesystem paths for `models` resource names again
+    * :fire: avoid writing secondary `.xml` into workspace
+
+Changed:
+
+ - CLIs: remove redundant negative options, add `-h` everywhere, show defaults
+ - move `--device` option to group level, apply to all model types (including Torch/ONNX)
+ - load models w/ `memory_limit` instead of `memory_growth` strategy (faster and less VRAM)
+ - show full stacktrace in case predictor fails (not just exception name)
+ - :fire: default to ONNX inference w/ TensorRT instead of TF (much **faster**, but requires **warmup** phase w/ persistent cache directory `$XDG_CONFIG_HOME`)
+ - :fire: published **new** set of **models**, both for training (TF/Keras) and inference (ONNX) – rebuilt from code changes (see below), *not* retrained
+ - :fire: Docker image now based on `ocrd/core-cuda-onnx` for layout only, no `[OCR]` in Docker ATM
+ - OCR: run pages in **parallel** (as for layout) via forking, add `--halt-fail` and `--num-jobs`, too
+ - improve layout:
+   * for heuristic reading order, do not try to elongate horizontal separators
+   * when column classifier is confident enough, do maximally enlarge the image (for 6 columns or more)
+ - improve TrOCR:
+   * refactor, simplify
+   * batch over entire page (faster)
+   * extract confidence, too
+   * use beam search instead of greedy decoder
+   * load model and preprocessor/tokenizer into one object (no need for distinct models)
+   * no need to resize images in advance
+   * if set, apply `-nmtc` here, too
+   * skip lines lower than `-min_conf` instead of setting empty string
+ - improve Keras OCR:
+   * refactor, simplify
+   * batch over entire page (faster)
+   * use correct confidence estimation
+   * run binarization ad-hoc (if not provided)
+   * adapt to all-in-one inference model
+   * get image size from model (instead of fixed)
+   * apply `-min_conf` here, too
+   * skip lines lower than `-min_conf` instead of setting empty string
+   * separate off `.png` files if `dir_in_bin==dir_in`
+   * batch flipped line candidates together with normal lines
+ - training/setup:
+   * refactor imports from `.models` (single auto-configured `get_model()` call, no `custom_objects` loading)
+   * drop new setting `reload_weights` in favour of `--rebuild` option for new CLI `eynollah-training convert`
+   * new CLI for model conversion between Keras (formats HDF5 / native Keras, TF SavedModel), TF-Serving (i.e. `model.export()`) and ONNX
+   * extract `MusicRegion` from PAGE GT, too
+ - training/models:
+   * ViT models: use Keras `Reshape` layer instead of ad-hoc `tf.reshape`
+   * ViT models: use `tf.map_fn` to iterate over batch in `tf.image.extract_patches` for attention (faster, less VRAM, makes ONNX conversion work)
+   * Keras (CNN-RNN) OCR backend: replace `Conv1D(channels_first)` (not fully supported by TF/CUDNN on CPU) by `Conv1D(channels_last)` w/ `Permute` layers
+   * Keras (CNN-RNN) OCR training→inference conversion: encapsulate CTC decoder and inverse string lookup by model itself (no need for extra models and files, all on GPU), always ensemble RGB and binarized input
+
+ Added:
+
+ - inference backends for TF-Serving and ONNX/TensorRT, differentiate by loaded model type
+ - integrate training for TrOCR (still untested!)
+ - integrate weight ensembling for TrOCR
+ - integrate standalone inference for TrOCR
+ - OCR-D processor: pass on more parameters:
+   - `device` selection
+   - `model_overrides`
+   - `skip_layout_and_reading_order`
+   - `num_col_upper`
+   - `num_col_lower`
+   - `binarize` (for `input_binary`)
+
+
 ## [0.8.0] - 2026-05-11
 
 * Optimize model performance
