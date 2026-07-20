@@ -5,6 +5,8 @@ Versioned according to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+## [0.9.0] - 2026-07-20
+
 Fixed:
 
   - CLIs for `reorder` and OCR: make work again
