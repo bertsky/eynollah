@@ -5,6 +5,10 @@ Versioned according to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+Fixed:
+
+  - Base image version must be >= core 3.13.2 for ONNX base image, OCR-D/core#1365
+
 ## [0.9.0] - 2026-07-20
 
 Fixed:
