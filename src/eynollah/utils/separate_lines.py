@@ -1451,7 +1451,7 @@ def return_deskew_slop(img,
         angle, _ = best_angle(angles)
 
         angles = np.linspace(angle - 22.5, angle + 22.5, n_tot_angles)
-        angle, _ = best_angle(sigma_des)
+        angle, _ = best_angle(angles)
     elif main_page:
         #angles = np.linspace(-12, 12, n_tot_angles)#np.array([0 , 45 , 90 , -45])
         angles = np.concatenate((np.linspace(-12, -7, n_tot_angles // 4),
