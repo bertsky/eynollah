@@ -5,6 +5,10 @@ Versioned according to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+Fixed:
+
+  * `return_deskew_slop`: typo caused silent exit for landscape pages, #223, #224, ht @lazyants @SAY-5
+
 ## [0.9.1] - 2026-07-20
 
 Fixed:
