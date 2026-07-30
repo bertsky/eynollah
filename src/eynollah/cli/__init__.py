@@ -1,6 +1,7 @@
 from .cli import main
 from .cli_binarize import binarize_cli
 from .cli_enhance import enhance_cli
+from .cli_extract_page import extract_page_cli
 from .cli_extract_images import extract_images_cli
 from .cli_layout import layout_cli
 from .cli_models import models_cli
@@ -13,4 +14,5 @@ main.add_command(layout_cli, 'layout')
 main.add_command(readingorder_cli, 'reorder')
 main.add_command(models_cli, 'models')
 main.add_command(ocr_cli, 'ocr')
+main.add_command(extract_page_cli, 'extract-page')
 main.add_command(extract_images_cli, 'extract-images')
