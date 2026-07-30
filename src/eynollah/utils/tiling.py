@@ -63,6 +63,10 @@ def do_prediction(
 
     logger.debug("Patch size: %sx%s", img_height_model, img_width_model)
     margin = int(marginal_of_patch_percent * img_height_model)
+    if 2 * margin > 0.5 * img_width_model:
+        margin = img_width_model // 4
+    if 2 * margin > 0.5 * img_height_model:
+        margin = img_height_model // 4
     window = 1 / (1 + np.exp(5.0 - 5 * np.arange(2 * margin) / margin))
     width_mid = img_width_model - 2 * margin
     height_mid = img_height_model - 2 * margin
@@ -245,6 +249,10 @@ def do_prediction_new_concept(
 
     logger.debug("Patch size: %sx%s", img_height_model, img_width_model)
     margin = int(marginal_of_patch_percent * img_height_model)
+    if 2 * margin > 0.5 * img_width_model:
+        margin = img_width_model // 4
+    if 2 * margin > 0.5 * img_height_model:
+        margin = img_height_model // 4
     window = 1 / (1 + np.exp(5.0 - 5 * np.arange(2 * margin) / margin))
     width_mid = img_width_model - 2 * margin
     height_mid = img_height_model - 2 * margin
