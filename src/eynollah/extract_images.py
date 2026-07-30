@@ -1,5 +1,5 @@
 """
-extract images?
+extract image regions only
 """
 
 from concurrent.futures import ProcessPoolExecutor
@@ -19,6 +19,7 @@ from .model_zoo.model_zoo import EynollahModelZoo
 from .writer import EynollahXmlWriter
 from .eynollah import Eynollah
 from .utils import box2rect, is_image_filename
+from .utils.tiling import do_prediction_new_concept
 from .plot import EynollahPlotter
 from .utils import Region
 
@@ -110,8 +111,9 @@ class EynollahImageExtractor(Eynollah):
         img_h_new = img_w_new * img_height_h // img_width_h
         img_resized = resize_image(img, img_h_new, img_w_new)
 
-        prediction_regions, _ = self.do_prediction_new_concept(
-            True, img_resized, self.model_zoo.get("extract_images"))
+        prediction_regions, _ = do_prediction_new_concept(
+            img_resized, self.model_zoo.get("extract_images"),
+            patches=True, logger=self.logger)
         prediction_regions = resize_image(prediction_regions, img_height_h, img_width_h)
 
         mask_texts_only = (prediction_regions == label_text).astype(np.uint8)
@@ -158,17 +160,11 @@ class EynollahImageExtractor(Eynollah):
             **kwargs
     ):
         """
-        Get image and scales, then extract the page of scanned image
+        Get scanned image and scales, then crop, and detect image regions
         """
         self.logger.debug("enter run")
         # Log enabled features directly
         enabled_modes = []
-        if self.full_layout:
-            enabled_modes.append("Full layout analysis")
-        if self.tables:
-            enabled_modes.append("Table detection")
-        if enabled_modes:
-            self.logger.info("Enabled modes: " + ", ".join(enabled_modes))
         if self.enable_plotting:
             self.logger.info("Saving debug plots")
             if dir_of_cropped_images:

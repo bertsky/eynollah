@@ -18,6 +18,7 @@ import cv2
 from .eynollah import Eynollah
 from .model_zoo import EynollahModelZoo
 from .utils.resize import resize_image
+from .utils.tiling import do_prediction
 from .utils import is_image_filename
 
 class SbbBinarizer(Eynollah):
@@ -84,8 +85,10 @@ class SbbBinarizer(Eynollah):
     ):
         image = self.cache_images(image_filename=img_filename, image_pil=img_pil)
         img = self.imread(image)
-        img_bin = self.do_prediction(use_patches, img, self.model_zoo.get("binarization"),
-                                     n_batch_inference=5)
+        img_bin = do_prediction(img, self.model_zoo.get("binarization"),
+                                patches=use_patches,
+                                logger=self.logger,
+                                n_batch_inference=5)
         img_bin = 255 * (img_bin == 0).astype(np.uint8)
         #img_bin = np.repeat(img_bin[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
         return img_bin

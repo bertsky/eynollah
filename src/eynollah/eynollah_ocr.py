@@ -32,6 +32,7 @@ from .utils import (
 from .utils.font import get_font
 from .utils.xml import etree_namespace_for_element_tag
 from .utils.resize import resize_image
+from .utils.tiling import do_prediction
 from .utils.utils_ocr import (
     break_curved_line_into_small_pieces_and_then_merge,
     fit_text_single_line,
@@ -200,8 +201,10 @@ class Eynollah_ocr(Eynollah):
         if img_bin is None:
             # run ad-hoc binarization
             self.logger.info("running binarization for ensemble input")
-            img_bin = self.do_prediction(True, img, self.model_zoo.get("binarization"),
-                                         n_batch_inference=5)
+            img_bin = do_prediction(img, self.model_zoo.get("binarization"),
+                                    patches=True,
+                                    logger=self.logger,
+                                    n_batch_inference=5)
             img_bin = np.repeat(img_bin[:, :, np.newaxis], 3, axis=2)
             img_bin = 255 * (img_bin == 0).astype(np.uint8)
 
