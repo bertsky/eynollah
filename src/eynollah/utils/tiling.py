@@ -159,7 +159,7 @@ def do_prediction(
                 img_patch[:] = 0
 
     if is_enhancement:
-        seg = (prediction * 255).astype(np.uint8)
+        seg = np.round(prediction * 255).astype(np.uint8)
     else:
         seg = np.argmax(prediction, axis=2).astype(np.uint8)
     if thresholding_for_some_classes:
