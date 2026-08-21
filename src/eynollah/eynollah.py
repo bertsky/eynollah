@@ -20,20 +20,16 @@ import logging
 import logging.handlers
 import sys
 
-from difflib import SequenceMatcher as sq
 import os
 import time
 from typing import Optional, List, Tuple
 from itertools import compress
-from functools import partial
 from pathlib import Path
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import cv2
 import numpy as np
-from scipy.signal import find_peaks
-from scipy.ndimage import gaussian_filter1d
 
 try:
     import matplotlib.pyplot as plt
@@ -47,7 +43,6 @@ from .utils.contour import (
     find_center_of_contours,
     find_new_features_of_contours,
     find_features_of_contours,
-    get_text_region_boxes_by_given_contours,
     get_region_confidences,
     return_contours_of_image,
     return_contours_of_interested_region,
@@ -62,7 +57,6 @@ from .utils.separate_lines import (
 )
 from .utils.marginals import get_marginals
 from .utils.resize import resize_image
-from .utils.shm import share_ndarray
 from .utils.tiling import do_prediction, do_prediction_new_concept
 from .utils import (
     Region,
@@ -75,7 +69,6 @@ from .utils import (
     crop_image_inside_box,
     box2slice,
     find_num_col,
-    otsu_copy_binary,
     fill_bb_of_drop_capitals,
     split_textregion_main_vs_head,
     small_textlines_to_parent_adherence2,
@@ -681,6 +674,7 @@ class Eynollah:
             label_text=1,
             label_imgs=2,
             label_seps=3,
+            label_art=4,
             label_tabs=10,
     ):
         self.logger.debug("enter get_early_layout")
@@ -737,6 +731,7 @@ class Eynollah:
             n_batch_inference=1,
             thresholding_for_artificial_class=True,
             threshold_art_class=self.threshold_art_class_layout,
+            artificial_class=label_art,
             separator_class=label_seps)
 
         prediction_regions = resize_image(prediction_regions, img_height_h, img_width_h)
@@ -749,7 +744,8 @@ class Eynollah:
             confidence_tables = np.zeros(img.shape[:2], dtype=bool)
 
         mask_texts_only = (prediction_regions == label_text).astype('uint8')
-        mask_images_only = (prediction_regions == label_imgs).astype('uint8')
+        mask_art_only = (prediction_regions == label_art)
+        mask_images_only = (prediction_regions == label_imgs)
         mask_seps_only = (prediction_regions == label_seps).astype('uint8')
         mask_tabs_only = prediction_tables
 
@@ -767,9 +763,15 @@ class Eynollah:
 
         text_regions_p = np.zeros_like(prediction_regions)
         text_regions_p = cv2.fillPoly(text_regions_p, pts=seps_only_cont, color=label_seps)
-        text_regions_p[mask_images_only == 1] = label_imgs
+        text_regions_p[mask_images_only] = label_imgs
         text_regions_p = cv2.fillPoly(text_regions_p, pts=texts_only_cont, color=label_text)
         text_regions_p = cv2.fillPoly(text_regions_p, pts=tabs_only_cont, color=label_tabs)
+        # plt.subplot(1, 2, 1, title="w/o art class")
+        # plt.imshow(text_regions_p)
+        text_regions_p[mask_art_only] = 0 # ensure instances are still separated
+        # plt.subplot(1, 2, 2, title="w/ art class")
+        # plt.imshow(text_regions_p)
+        # plt.show()
 
         textline_mask_tot_ea[text_regions_p != label_text] = 0
         confidence_textline[text_regions_p != label_text] = 0
