@@ -1747,8 +1747,12 @@ class Eynollah:
 
         # FIXME: post-hoc cropping (remove when models support it, and replace image['img_res'] with image_page)
         page_box = cv2.boundingRect(page.contour)
+        text_early_cont = [np.minimum([page_box[2:]],
+                                      cont - [page_box[:2]])
+                           for cont in text_early_cont]
         seplines_conf = get_region_confidences(seplines_cont, regions_confidence)
-        seplines = [Region(cont - [page_box[:2]],
+        seplines = [Region(np.minimum([page_box[2:]],
+                                      cont - [page_box[:2]]),
                            conf=conf)
                     for cont, conf in zip(seplines_cont, seplines_conf)]
         page_box = box2slice(page_box)
