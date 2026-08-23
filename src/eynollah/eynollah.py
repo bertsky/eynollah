@@ -1113,8 +1113,8 @@ class Eynollah:
         self.logger.info("slope_deskew: %.2f°", slope_deskew)
         return slope_deskew
 
-    def run_marginals(self, num_col_classifier, slope_deskew, text_regions_p):
-        get_marginals(num_col_classifier, slope_deskew, text_regions_p,
+    def run_marginals(self, *args):
+        get_marginals(*args,
                       kernel=KERNEL)
 
     def get_full_layout(
@@ -1783,17 +1783,8 @@ class Eynollah:
             return
 
         if num_col_classifier in (1,2):
-            img_h_org, img_w_org = text_regions_p.shape
-            if num_col_classifier == 1:
-                img_w_new = 2000
-            else:
-                img_w_new = 2400
-            img_h_new = img_w_new * img_h_org // img_w_org
-
-            text_regions_p_new = resize_image(text_regions_p, img_h_new, img_w_new)
-            self.run_marginals(num_col_classifier, slope_deskew, text_regions_p_new)
-            text_regions_p = resize_image(text_regions_p_new, img_h_org, img_w_org)
-
+            self.run_marginals(num_col_classifier, slope_deskew,
+                               text_regions_p, textline_mask_tot_ea_org)
             t5 = time.time()
             self.logger.info("Marginalia extraction took %.1fs", t5 - t4)
         else:
