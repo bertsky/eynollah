@@ -605,7 +605,7 @@ class Eynollah:
             except ValueError:
                 parent.skew = slope_deskew
             # plt.imshow(textline_mask_tot)
-            # for contour in textlines_in:
+            # for contour in textlines_in_cont:
             #     plt.plot(*contour[:, 0].T, linewidth=3, color='red')
             # plt.show()
 
@@ -1198,7 +1198,7 @@ class Eynollah:
     ):
         if not erosion_hurts:
             regions_without_separators = regions_without_separators.astype(np.uint8)
-            regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=6)
+            regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=2)
         separator_mask = text_regions_p == label_seps_fl
 
         _, _, matrix_of_seps_ch, splitter_y_new = find_number_of_columns_in_document(
