@@ -1196,9 +1196,6 @@ class Eynollah:
             contours_h=[],
             label_seps_fl=6,
     ):
-        if not erosion_hurts:
-            regions_without_separators = regions_without_separators.astype(np.uint8)
-            regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=2)
         separator_mask = text_regions_p == label_seps_fl
 
         _, _, matrix_of_seps_ch, splitter_y_new = find_number_of_columns_in_document(
@@ -1408,6 +1405,9 @@ class Eynollah:
             num_col_classifier,
             erosion_hurts,
     ):
+        if not erosion_hurts:
+            regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=2)
+
         boxes = self.run_boxes_order(text_regions_p,
                                      num_col_classifier,
                                      erosion_hurts,
