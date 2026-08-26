@@ -120,6 +120,7 @@ class Eynollah:
         reading_order_machine_based : bool = False,
         num_col_upper : int = 0,
         num_col_lower : int = 0,
+        allow_marginalia : str = "both",
         threshold_art_class_layout: float = 0.1,
         threshold_art_class_textline: float = 0.1,
         skip_layout_and_reading_order : bool = False,
@@ -145,6 +146,7 @@ class Eynollah:
         self.skip_layout_and_reading_order = skip_layout_and_reading_order
         self.num_col_upper = int(num_col_upper)
         self.num_col_lower = int(num_col_lower)
+        self.allow_marginalia = allow_marginalia
         self.threshold_art_class_layout = float(threshold_art_class_layout)
         self.threshold_art_class_textline = float(threshold_art_class_textline)
 
@@ -1115,6 +1117,8 @@ class Eynollah:
 
     def run_marginals(self, *args):
         get_marginals(*args,
+                      allow_l=self.allow_marginalia in ('left', 'both'),
+                      allow_r=self.allow_marginalia in ('right', 'both'),
                       kernel=KERNEL)
 
     def get_full_layout(
@@ -1782,7 +1786,7 @@ class Eynollah:
             self.logger.info("Job done in %.1fs", time.time() - t0)
             return
 
-        if num_col_classifier in (1,2):
+        if num_col_classifier in (1,2) and self.allow_marginalia != 'off':
             self.run_marginals(num_col_classifier, slope_deskew,
                                text_regions_p, textline_mask_tot_ea_org)
             t5 = time.time()

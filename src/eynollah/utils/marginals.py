@@ -45,6 +45,8 @@ MAX_THICKNESS_STEP_FRACT_MAIN = 0.5
 def get_marginals(num_col, slope_deskew,
                   early_layout,
                   textline_mask,
+                  allow_l=True,
+                  allow_r=True,
                   kernel=None,
                   label_text=1,
                   label_marg=4,
@@ -216,13 +218,13 @@ def get_marginals(num_col, slope_deskew,
         # should not happen, anyway
         return
 
-    if len(gaps_r):
+    if len(gaps_r) and allow_r:
         best_r = np.argmax(scores[gaps_r])
         point_r = gaps_r[best_r]
     else:
         point_r = width - 1
         #point_r = last_nonzero
-    if len(gaps_l):
+    if len(gaps_l) and allow_l:
         best_l = np.argmax(scores[gaps_l])
         point_l = gaps_l[best_l]
     else:
@@ -240,7 +242,7 @@ def get_marginals(num_col, slope_deskew,
     # because marginalia are very close to main,
     # then look at positive/negative peaks of derivative on left/right side,
     # to identify smaller plateaus of sufficient thickness:
-    if len(gaps_l) == 0:
+    if len(gaps_l) == 0 and allow_l:
         text_mask_d_ys2 = np.diff(text_mask_d_ys[:mid_point+1].astype(int))
         jumps, _ = find_peaks(text_mask_d_ys2,
                               # constrain slope lower bound
@@ -305,7 +307,7 @@ def get_marginals(num_col, slope_deskew,
                 # ax2.vlines([jump], 0, height, label='jump', colors='y')
                 break
             # TODO: try another criterion: deviation in average textline heights
-    if len(gaps_r) == 0:
+    if len(gaps_r) == 0 and allow_r:
         text_mask_d_ys2 = -np.diff(text_mask_d_ys[mid_point-1:].astype(int))
         jumps, _ = find_peaks(text_mask_d_ys2,
                               # constrain slope lower bound
