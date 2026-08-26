@@ -25,11 +25,6 @@ from ocrd_utils import (
 from .eynollah import Eynollah
 from .model_zoo import EynollahModelZoo
 from .utils.resize import resize_image
-from .utils.contour import (
-    find_new_features_of_contours,
-    return_contours_of_image,
-    return_parent_contours,
-)
 from .utils import is_xml_filename
 
 DPI_THRESHOLD = 298

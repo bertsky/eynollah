@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-from eynollah.utils.contour import filter_contours_area_of_image, return_contours_of_image, return_contours_of_interested_region
+from eynollah.utils.contour import return_contours_of_class
 from eynollah.utils.resize import resize_image
 
 from .model_zoo.model_zoo import EynollahModelZoo
@@ -120,8 +120,8 @@ class EynollahImageExtractor(Eynollah):
         mask_images_only = (prediction_regions == label_imgs).astype(np.uint8)
         mask_seps_only = (prediction_regions == label_seps).astype(np.uint8)
 
-        texts_only_cont = return_contours_of_interested_region(mask_texts_only,1,0.00001)
-        seps_only_cont = return_contours_of_interested_region(mask_seps_only,1,0.00001)
+        texts_only_cont = return_contours_of_class(mask_texts_only, 1, 1e-5)
+        seps_only_cont = return_contours_of_class(mask_seps_only, 1, 1e-5)
 
         text_regions_p = np.zeros_like(prediction_regions)
         text_regions_p = cv2.fillPoly(text_regions_p, pts=seps_only_cont, color=label_seps)
@@ -132,7 +132,7 @@ class EynollahImageExtractor(Eynollah):
         text_regions_p[-15:] = 0
         text_regions_p[:, -15:] = 0
 
-        images_cont = return_contours_of_interested_region(text_regions_p, label_imgs, 0.001)
+        images_cont = return_contours_of_class(text_regions_p, label_imgs, 1e-3)
 
         images_cont_fin = []
         for cont in images_cont:

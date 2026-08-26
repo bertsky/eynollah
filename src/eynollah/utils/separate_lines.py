@@ -17,135 +17,17 @@ from .rotate import (
 )
 from .resize import resize_image
 from .contour import (
-    return_parent_contours,
-    filter_contours_area_of_image_tables,
-    return_contours_of_image,
-    filter_contours_area_of_image,
-    return_contours_of_interested_textline,
+    return_contours_of_class,
     find_center_of_contours,
-    find_contours_mean_y_diff,
 )
 from . import (
     find_num_col_deskew,
     box2rect,
 )
 
-def dedup_separate_lines(img_patch, contour_text_interest, thetha, axis):
-    (h, w) = img_patch.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, -thetha, 1.0)
-    x_d = M[0, 2]
-    y_d = M[1, 2]
 
-    thetha = thetha / 180.0 * np.pi
-    rotation_matrix = np.array([[np.cos(thetha), -np.sin(thetha)], [np.sin(thetha), np.cos(thetha)]])
-
-    x_cont = contour_text_interest[:, 0, 0]
-    y_cont = contour_text_interest[:, 0, 1]
-    x_cont = x_cont - np.min(x_cont)
-    y_cont = y_cont - np.min(y_cont)
-
-    y_min_cont, x_min_cont = 0, 0
-    y_max_cont, x_max_cont = img_patch.shape
-
-    xv = np.linspace(x_min_cont, x_max_cont, 1000)
-    textline_patch_sum_along_width = img_patch.sum(axis=axis)
-    first_nonzero = 0  # (next((i for i, x in enumerate(mada_n) if x), None))
-
-    y = textline_patch_sum_along_width[:]  # [first_nonzero:last_nonzero]
-    y_padded = np.zeros(len(y) + 40)
-    y_padded[20 : len(y) + 20] = y
-    x = np.array(range(len(y)))
-
-    peaks_real, _ = find_peaks(gaussian_filter1d(y, 3), height=0)
-    if 1 > 0:
-        try:
-            y_padded_smoothed_e = gaussian_filter1d(y_padded, 2)
-            y_padded_up_to_down_e = -y_padded + np.max(y_padded)
-            y_padded_up_to_down_padded_e = np.zeros(len(y_padded_up_to_down_e) + 40)
-            y_padded_up_to_down_padded_e[20 : len(y_padded_up_to_down_e) + 20] = y_padded_up_to_down_e
-            y_padded_up_to_down_padded_e = gaussian_filter1d(y_padded_up_to_down_padded_e, 2)
-
-            peaks_e, _ = find_peaks(y_padded_smoothed_e, height=0)
-            peaks_neg_e, _ = find_peaks(y_padded_up_to_down_padded_e, height=0)
-            neg_peaks_max = np.max(y_padded_up_to_down_padded_e[peaks_neg_e])
-
-            arg_neg_must_be_deleted = np.arange(len(peaks_neg_e))[
-                y_padded_up_to_down_padded_e[peaks_neg_e] / float(neg_peaks_max) < 0.3]
-            diff_arg_neg_must_be_deleted = np.diff(arg_neg_must_be_deleted)
-
-            arg_diff = np.array(range(len(diff_arg_neg_must_be_deleted)))
-            arg_diff_cluster = arg_diff[diff_arg_neg_must_be_deleted > 1]
-
-            peaks_new = peaks_e[:]
-            peaks_neg_new = peaks_neg_e[:]
-
-            clusters_to_be_deleted = []
-            if len(arg_diff_cluster) > 0:
-                clusters_to_be_deleted.append(
-                    arg_neg_must_be_deleted[0 : arg_diff_cluster[0] + 1])
-                for i in range(len(arg_diff_cluster) - 1):
-                    clusters_to_be_deleted.append(
-                        arg_neg_must_be_deleted[arg_diff_cluster[i] + 1 :
-                                                arg_diff_cluster[i + 1] + 1])
-                clusters_to_be_deleted.append(
-                    arg_neg_must_be_deleted[arg_diff_cluster[len(arg_diff_cluster) - 1] + 1 :])
-            if len(clusters_to_be_deleted) > 0:
-                peaks_new_extra = []
-                for m in range(len(clusters_to_be_deleted)):
-                    min_cluster = np.min(peaks_e[clusters_to_be_deleted[m]])
-                    max_cluster = np.max(peaks_e[clusters_to_be_deleted[m]])
-                    peaks_new_extra.append(int((min_cluster + max_cluster) / 2.0))
-                    for m1 in range(len(clusters_to_be_deleted[m])):
-                        peaks_new = peaks_new[peaks_new != peaks_e[clusters_to_be_deleted[m][m1] - 1]]
-                        peaks_new = peaks_new[peaks_new != peaks_e[clusters_to_be_deleted[m][m1]]]
-                        peaks_neg_new = peaks_neg_new[peaks_neg_new != peaks_neg_e[clusters_to_be_deleted[m][m1]]]
-                peaks_new_tot = []
-                for i1 in peaks_new:
-                    peaks_new_tot.append(i1)
-                for i1 in peaks_new_extra:
-                    peaks_new_tot.append(i1)
-                peaks_new_tot = np.sort(peaks_new_tot)
-
-            else:
-                peaks_new_tot = peaks_e[:]
-
-            textline_con, hierarchy = return_contours_of_image(img_patch)
-            textline_con_fil = filter_contours_area_of_image(img_patch,
-                                                             textline_con, hierarchy,
-                                                             max_area=1, min_area=0.0008)
-            if len(np.diff(peaks_new_tot))>1:
-                y_diff_mean = np.mean(np.diff(peaks_new_tot))  # self.find_contours_mean_y_diff(textline_con_fil)
-                sigma_gaus = int(y_diff_mean * (7.0 / 40.0))
-            else:
-                sigma_gaus = 12
-        except:
-            sigma_gaus = 12
-        if sigma_gaus < 3:
-            sigma_gaus = 3
-
-    y_padded_smoothed = gaussian_filter1d(y_padded, sigma_gaus)
-    y_padded_up_to_down = -y_padded + np.max(y_padded)
-    y_padded_up_to_down_padded = np.zeros(len(y_padded_up_to_down) + 40)
-    y_padded_up_to_down_padded[20 : len(y_padded_up_to_down) + 20] = y_padded_up_to_down
-    y_padded_up_to_down_padded = gaussian_filter1d(y_padded_up_to_down_padded, sigma_gaus)
-
-    peaks, _ = find_peaks(y_padded_smoothed, height=0)
-    peaks_neg, _ = find_peaks(y_padded_up_to_down_padded, height=0)
-
-    return (x, y,
-            x_d, y_d,
-            xv,
-            x_min_cont, y_min_cont,
-            x_max_cont, y_max_cont,
-            first_nonzero,
-            y_padded_up_to_down_padded,
-            y_padded_smoothed,
-            peaks, peaks_neg,
-            rotation_matrix)
-
-def separate_lines(img_patch, contour_text_interest, thetha, x_help, y_help):
-    h, w = img_patch.shape[:2]
+def separate_lines(mask, contour_text_interest, thetha, x_help, y_help):
+    h, w = mask.shape[:2]
     center = (w // 2, h // 2)
     M = cv2.getRotationMatrix2D(center, -thetha, 1.0)
     x_d = M[0, 2]
@@ -159,18 +41,17 @@ def separate_lines(img_patch, contour_text_interest, thetha, x_help, y_help):
     y_cont = y_cont - np.min(y_cont)
 
     x_min_cont = 0
-    x_max_cont = img_patch.shape[1]
+    x_max_cont = mask.shape[1]
     y_min_cont = 0
-    y_max_cont = img_patch.shape[0]
+    y_max_cont = mask.shape[0]
 
     xv = np.linspace(x_min_cont, x_max_cont, 1000)
-    textline_patch_sum_along_width = img_patch.sum(axis=1)
     first_nonzero = 0  # (next((i for i, x in enumerate(mada_n) if x), None))
-
-    y = textline_patch_sum_along_width[:]  # [first_nonzero:last_nonzero]
+    y = mask.sum(axis=1)
+    y = y[:]  # [first_nonzero:last_nonzero]
     y_padded = np.zeros(len(y) + 40)
     y_padded[20:len(y) + 20] = y
-    x = np.array(range(len(y)))
+    x = np.arange(len(y))
 
     peaks_real, _ = find_peaks(gaussian_filter1d(y, 3), height=0)
     
@@ -220,16 +101,12 @@ def separate_lines(img_patch, contour_text_interest, thetha, x_help, y_help):
         else:
             peaks_new_tot=peaks_e[:]
 
-        textline_con,hierarchy=return_contours_of_image(img_patch)
-        textline_con_fil=filter_contours_area_of_image(img_patch,
-                                                        textline_con, hierarchy,
-                                                        max_area=1, min_area=0.0008)
-
-        if len(np.diff(peaks_new_tot))>0:
-            y_diff_mean=np.mean(np.diff(peaks_new_tot))#self.find_contours_mean_y_diff(textline_con_fil)
-            sigma_gaus=int(  y_diff_mean * (7./40.0) )
+        # textline_con_fil = return_contours_of_class(mask, 1, min_area=0.0008)
+        if len(np.diff(peaks_new_tot)):
+            y_diff_mean = np.mean(np.diff(peaks_new_tot)) # self.find_contours_mean_y_diff(textline_con_fil)
+            sigma_gaus = int(y_diff_mean * (7. / 40.0))
         else:
-            sigma_gaus=12
+            sigma_gaus = 12
             
     except:
         sigma_gaus=12
@@ -358,8 +235,8 @@ def separate_lines(img_patch, contour_text_interest, thetha, x_help, y_help):
                 point_down_narrow = peaks[jj] + first_nonzero + int(
                     1.1 * dis_to_next_down)  ###-int(dis_to_next_down*1./2)
 
-            if point_down_narrow >= img_patch.shape[0]:
-                point_down_narrow = img_patch.shape[0] - 2
+            if point_down_narrow >= mask.shape[0]:
+                point_down_narrow = mask.shape[0] - 2
             
 
             distances = [cv2.pointPolygonTest(contour_text_interest_copy,
@@ -483,8 +360,8 @@ def separate_lines(img_patch, contour_text_interest, thetha, x_help, y_help):
                 point_down = peaks_neg[1] + first_nonzero# peaks[jj] + first_nonzero + int(1. / 1.8 * dis_to_next)
             elif jj == 1:
                 point_down =peaks_neg[1] + first_nonzero# peaks[jj] + first_nonzero + int(1. / 1.8 * dis_to_next)
-                if point_down >= img_patch.shape[0]:
-                    point_down = img_patch.shape[0] - 2
+                if point_down >= mask.shape[0]:
+                    point_down = mask.shape[0] - 2
                 try:
                     point_up = peaks_neg[2] + first_nonzero#peaks[jj] + first_nonzero - int(1. / 1.8 * dis_to_next)
                 except:
@@ -555,8 +432,8 @@ def separate_lines(img_patch, contour_text_interest, thetha, x_help, y_help):
                 dis_to_next = peaks[jj] - peaks[jj - 1]
                 # point_down=peaks[jj]+first_nonzero+int(1./3*dis_to_next)
                 point_down = peaks[jj] + first_nonzero + int(1. / 1.7 * dis_to_next)
-                if point_down >= img_patch.shape[0]:
-                    point_down = img_patch.shape[0] - 2
+                if point_down >= mask.shape[0]:
+                    point_down = mask.shape[0] - 2
                 # point_up=peaks[jj]+first_nonzero-int(1./3*dis_to_next)
                 point_up = peaks[jj] + first_nonzero - int(1. / 1.9 * dis_to_next)
             else:
@@ -619,344 +496,8 @@ def separate_lines(img_patch, contour_text_interest, thetha, x_help, y_help):
                                             [[int(x_min), int(point_down)]]]))
     return peaks, textline_boxes_rot
 
-def separate_lines_vertical(img_patch, contour_text_interest, thetha):
-    thetha = thetha + 90
-    contour_text_interest_copy = contour_text_interest.copy()
-    x, y, x_d, y_d, xv, x_min_cont, y_min_cont, x_max_cont, y_max_cont, \
-        first_nonzero, y_padded_up_to_down_padded, y_padded_smoothed, \
-        peaks, peaks_neg, rotation_matrix = dedup_separate_lines(img_patch, contour_text_interest, thetha, 0)
-
-    # plt.plot(y_padded_up_to_down_padded)
-    # plt.plot(peaks_neg,y_padded_up_to_down_padded[peaks_neg],'*')
-    # plt.title('negs')
-    # plt.show()
-
-    # plt.plot(y_padded_smoothed)
-    # plt.plot(peaks,y_padded_smoothed[peaks],'*')
-    # plt.title('poss')
-    # plt.show()
-
-    neg_peaks_max = np.max(y_padded_up_to_down_padded[peaks_neg])
-
-    arg_neg_must_be_deleted = np.arange(len(peaks_neg))[
-        y_padded_up_to_down_padded[peaks_neg] / float(neg_peaks_max) < 0.42]
-    diff_arg_neg_must_be_deleted = np.diff(arg_neg_must_be_deleted)
-
-    arg_diff = np.array(range(len(diff_arg_neg_must_be_deleted)))
-    arg_diff_cluster = arg_diff[diff_arg_neg_must_be_deleted > 1]
-
-    peaks_new = peaks[:]
-    peaks_neg_new = peaks_neg[:]
-    clusters_to_be_deleted = []
-
-    if len(arg_neg_must_be_deleted) >= 2 and len(arg_diff_cluster) >= 2:
-        clusters_to_be_deleted.append(arg_neg_must_be_deleted[0 : arg_diff_cluster[0] + 1])
-        for i in range(len(arg_diff_cluster) - 1):
-            clusters_to_be_deleted.append(arg_neg_must_be_deleted[arg_diff_cluster[i] + 1 :
-                                                                  arg_diff_cluster[i + 1] + 1])
-        clusters_to_be_deleted.append(arg_neg_must_be_deleted[arg_diff_cluster[len(arg_diff_cluster) - 1] + 1 :])
-    elif len(arg_neg_must_be_deleted) >= 2 and len(arg_diff_cluster) == 0:
-        clusters_to_be_deleted.append(arg_neg_must_be_deleted[:])
-    else:
-        clusters_to_be_deleted.append(arg_neg_must_be_deleted)
-    if len(clusters_to_be_deleted) > 0:
-        peaks_new_extra = []
-        for m in range(len(clusters_to_be_deleted)):
-            min_cluster = np.min(peaks[clusters_to_be_deleted[m]])
-            max_cluster = np.max(peaks[clusters_to_be_deleted[m]])
-            peaks_new_extra.append(int((min_cluster + max_cluster) / 2.0))
-            for m1 in range(len(clusters_to_be_deleted[m])):
-                peaks_new = peaks_new[peaks_new != peaks[clusters_to_be_deleted[m][m1] - 1]]
-                peaks_new = peaks_new[peaks_new != peaks[clusters_to_be_deleted[m][m1]]]
-                peaks_neg_new = peaks_neg_new[peaks_neg_new != peaks_neg[clusters_to_be_deleted[m][m1]]]
-        peaks_new_tot = []
-        for i1 in peaks_new:
-            peaks_new_tot.append(i1)
-        for i1 in peaks_new_extra:
-            peaks_new_tot.append(i1)
-        peaks_new_tot = np.sort(peaks_new_tot)
-
-        peaks = peaks_new_tot[:]
-        peaks_neg = peaks_neg_new[:]
-
-    else:
-        peaks_new_tot = peaks[:]
-        peaks = peaks_new_tot[:]
-        peaks_neg = peaks_neg_new[:]
-    
-    if len(y_padded_smoothed[peaks])>1:
-        mean_value_of_peaks = np.mean(y_padded_smoothed[peaks])
-        std_value_of_peaks = np.std(y_padded_smoothed[peaks])
-    else:
-        mean_value_of_peaks = np.nan
-        std_value_of_peaks = np.nan
-        
-    peaks_values = y_padded_smoothed[peaks]
-
-    peaks_neg = peaks_neg - 20 - 20
-    peaks = peaks - 20
-
-    for jj in range(len(peaks_neg)):
-        if peaks_neg[jj] > len(x) - 1:
-            peaks_neg[jj] = len(x) - 1
-
-    for jj in range(len(peaks)):
-        if peaks[jj] > len(x) - 1:
-            peaks[jj] = len(x) - 1
-
-    textline_boxes = []
-    textline_boxes_rot = []
-
-    if len(peaks_neg) == len(peaks) + 1 and len(peaks) >= 3:
-        for jj in range(len(peaks)):
-
-            if jj == (len(peaks) - 1):
-                dis_to_next_up = abs(peaks[jj] - peaks_neg[jj])
-                dis_to_next_down = abs(peaks[jj] - peaks_neg[jj + 1])
-
-                if peaks_values[jj] > mean_value_of_peaks - std_value_of_peaks / 2.0:
-                    point_up = peaks[jj] + first_nonzero - int(1.3 * dis_to_next_up)
-                    ##+int(dis_to_next_up*1./4.0)
-                    point_down = x_max_cont - 1
-                    ##peaks[jj] + first_nonzero + int(1.3 * dis_to_next_down)
-                    #point_up
-                    # np.max(y_cont)#peaks[jj] + first_nonzero + int(1.4 * dis_to_next_down)
-                    ###-int(dis_to_next_down*1./4.0)
-                else:
-                    point_up = peaks[jj] + first_nonzero - int(1.4 * dis_to_next_up)
-                    ##+int(dis_to_next_up*1./4.0)
-                    point_down = x_max_cont - 1
-                    ##peaks[jj] + first_nonzero + int(1.6 * dis_to_next_down)
-                    #point_up
-                    # np.max(y_cont)
-                    #peaks[jj] + first_nonzero + int(1.4 * dis_to_next_down)
-                    ###-int(dis_to_next_down*1./4.0)
-
-                point_down_narrow = peaks[jj] + first_nonzero + int(1.4 * dis_to_next_down)
-                ###-int(dis_to_next_down*1./2)
-            else:
-                dis_to_next_up = abs(peaks[jj] - peaks_neg[jj])
-                dis_to_next_down = abs(peaks[jj] - peaks_neg[jj + 1])
-
-                if peaks_values[jj] > mean_value_of_peaks - std_value_of_peaks / 2.0:
-                    point_up = peaks[jj] + first_nonzero - int(1.1 * dis_to_next_up)
-                    ##+int(dis_to_next_up*1./4.0)
-                    point_down = peaks[jj] + first_nonzero + int(1.1 * dis_to_next_down)
-                    ###-int(dis_to_next_down*1./4.0)
-                else:
-                    point_up = peaks[jj] + first_nonzero - int(1.23 * dis_to_next_up)
-                    ##+int(dis_to_next_up*1./4.0)
-                    point_down = peaks[jj] + first_nonzero + int(1.33 * dis_to_next_down)
-                    ###-int(dis_to_next_down*1./4.0)
-
-                point_down_narrow = peaks[jj] + first_nonzero + int(1.1 * dis_to_next_down)
-                ###-int(dis_to_next_down*1./2)
-
-            if point_down_narrow >= img_patch.shape[0]:
-                point_down_narrow = img_patch.shape[0] - 2
-            
-            distances = [cv2.pointPolygonTest(contour_text_interest_copy,
-                                              tuple(int(x) for x in np.array([xv[mj], peaks[jj] + first_nonzero])),
-                                              True)
-                         for mj in range(len(xv))]
-            distances = np.array(distances)
-
-            xvinside = xv[distances >= 0]
-            if len(xvinside) == 0:
-                x_min = x_min_cont
-                x_max = x_max_cont
-            else:
-                x_min = np.min(xvinside)  # max(x_min_interest,x_min_cont)
-                x_max = np.max(xvinside)  # min(x_max_interest,x_max_cont)
-
-            p1 = np.dot(rotation_matrix, [int(point_up), int(y_min_cont)])
-            p2 = np.dot(rotation_matrix, [int(point_down), int(y_min_cont)])
-            p3 = np.dot(rotation_matrix, [int(point_down), int(y_max_cont)])
-            p4 = np.dot(rotation_matrix, [int(point_up), int(y_max_cont)])
-
-            x_min_rot1, point_up_rot1 = p1[0] + x_d, p1[1] + y_d
-            x_max_rot2, point_up_rot2 = p2[0] + x_d, p2[1] + y_d
-            x_max_rot3, point_down_rot3 = p3[0] + x_d, p3[1] + y_d
-            x_min_rot4, point_down_rot4 = p4[0] + x_d, p4[1] + y_d
-
-            if x_min_rot1 < 0:
-                x_min_rot1 = 0
-            if x_min_rot4 < 0:
-                x_min_rot4 = 0
-            if point_up_rot1 < 0:
-                point_up_rot1 = 0
-            if point_up_rot2 < 0:
-                point_up_rot2 = 0
-
-            textline_boxes_rot.append(np.array([[[int(x_min_rot1), int(point_up_rot1)]],
-                                                [[int(x_max_rot2), int(point_up_rot2)]],
-                                                [[int(x_max_rot3), int(point_down_rot3)]],
-                                                [[int(x_min_rot4), int(point_down_rot4)]]]))
-            textline_boxes.append(np.array([[[int(x_min), int(point_up)]],
-                                            [[int(x_max), int(point_up)]],
-                                            [[int(x_max), int(point_down)]],
-                                            [[int(x_min), int(point_down)]]]))
-    elif len(peaks) < 1:
-        pass
-    elif len(peaks) == 1:
-        x_min = x_min_cont
-        x_max = x_max_cont
-
-        y_min = y_min_cont
-        y_max = y_max_cont
-
-        p1 = np.dot(rotation_matrix, [int(point_up), int(y_min_cont)])
-        p2 = np.dot(rotation_matrix, [int(point_down), int(y_min_cont)])
-        p3 = np.dot(rotation_matrix, [int(point_down), int(y_max_cont)])
-        p4 = np.dot(rotation_matrix, [int(point_up), int(y_max_cont)])
-
-        x_min_rot1, point_up_rot1 = p1[0] + x_d, p1[1] + y_d
-        x_max_rot2, point_up_rot2 = p2[0] + x_d, p2[1] + y_d
-        x_max_rot3, point_down_rot3 = p3[0] + x_d, p3[1] + y_d
-        x_min_rot4, point_down_rot4 = p4[0] + x_d, p4[1] + y_d
-
-        if x_min_rot1 < 0:
-            x_min_rot1 = 0
-        if x_min_rot4 < 0:
-            x_min_rot4 = 0
-        if point_up_rot1 < 0:
-            point_up_rot1 = 0
-        if point_up_rot2 < 0:
-            point_up_rot2 = 0
-
-        textline_boxes_rot.append(np.array([[[int(x_min_rot1), int(point_up_rot1)]],
-                                            [[int(x_max_rot2), int(point_up_rot2)]],
-                                            [[int(x_max_rot3), int(point_down_rot3)]],
-                                            [[int(x_min_rot4), int(point_down_rot4)]]]))
-        textline_boxes.append(np.array([[[int(x_min), int(y_min)]],
-                                        [[int(x_max), int(y_min)]],
-                                        [[int(x_max), int(y_max)]],
-                                        [[int(x_min), int(y_max)]]]))
-    elif len(peaks) == 2:
-        dis_to_next = np.abs(peaks[1] - peaks[0])
-        for jj in range(len(peaks)):
-            if jj == 0:
-                point_up = 0  # peaks[jj] + first_nonzero - int(1. / 1.7 * dis_to_next)
-                if point_up < 0:
-                    point_up = 1
-                point_down = peaks[jj] + first_nonzero + int(1.0 / 1.8 * dis_to_next)
-            elif jj == 1:
-                point_down = peaks[jj] + first_nonzero + int(1.0 / 1.8 * dis_to_next)
-                if point_down >= img_patch.shape[0]:
-                    point_down = img_patch.shape[0] - 2
-                point_up = peaks[jj] + first_nonzero - int(1.0 / 1.8 * dis_to_next)
-            
-            distances = [cv2.pointPolygonTest(contour_text_interest_copy,
-                                              tuple(int(x) for x in np.array([xv[mj], peaks[jj] + first_nonzero])),
-                                              True)
-                         for mj in range(len(xv))]
-            distances = np.array(distances)
-
-            xvinside = xv[distances >= 0]
-            if len(xvinside) == 0:
-                x_min = x_min_cont
-                x_max = x_max_cont
-            else:
-                x_min = np.min(xvinside)
-                x_max = np.max(xvinside)
-
-            p1 = np.dot(rotation_matrix, [int(point_up), int(y_min_cont)])
-            p2 = np.dot(rotation_matrix, [int(point_down), int(y_min_cont)])
-            p3 = np.dot(rotation_matrix, [int(point_down), int(y_max_cont)])
-            p4 = np.dot(rotation_matrix, [int(point_up), int(y_max_cont)])
-
-            x_min_rot1, point_up_rot1 = p1[0] + x_d, p1[1] + y_d
-            x_max_rot2, point_up_rot2 = p2[0] + x_d, p2[1] + y_d
-            x_max_rot3, point_down_rot3 = p3[0] + x_d, p3[1] + y_d
-            x_min_rot4, point_down_rot4 = p4[0] + x_d, p4[1] + y_d
-
-            if x_min_rot1 < 0:
-                x_min_rot1 = 0
-            if x_min_rot4 < 0:
-                x_min_rot4 = 0
-            if point_up_rot1 < 0:
-                point_up_rot1 = 0
-            if point_up_rot2 < 0:
-                point_up_rot2 = 0
-
-            textline_boxes_rot.append(np.array([[[int(x_min_rot1), int(point_up_rot1)]],
-                                                [[int(x_max_rot2), int(point_up_rot2)]],
-                                                [[int(x_max_rot3), int(point_down_rot3)]],
-                                                [[int(x_min_rot4), int(point_down_rot4)]]]))
-            textline_boxes.append(np.array([[[int(x_min), int(point_up)]],
-                                            [[int(x_max), int(point_up)]],
-                                            [[int(x_max), int(point_down)]],
-                                            [[int(x_min), int(point_down)]]]))
-    else:
-        for jj in range(len(peaks)):
-            if jj == 0:
-                dis_to_next = peaks[jj + 1] - peaks[jj]
-                # point_up=peaks[jj]+first_nonzero-int(1./3*dis_to_next)
-                point_up = peaks[jj] + first_nonzero - int(1.0 / 1.9 * dis_to_next)
-                if point_up < 0:
-                    point_up = 1
-                # point_down=peaks[jj]+first_nonzero+int(1./3*dis_to_next)
-                point_down = peaks[jj] + first_nonzero + int(1.0 / 1.9 * dis_to_next)
-            elif jj == len(peaks) - 1:
-                dis_to_next = peaks[jj] - peaks[jj - 1]
-                # point_down=peaks[jj]+first_nonzero+int(1./3*dis_to_next)
-                point_down = peaks[jj] + first_nonzero + int(1.0 / 1.7 * dis_to_next)
-                if point_down >= img_patch.shape[0]:
-                    point_down = img_patch.shape[0] - 2
-                # point_up=peaks[jj]+first_nonzero-int(1./3*dis_to_next)
-                point_up = peaks[jj] + first_nonzero - int(1.0 / 1.9 * dis_to_next)
-            else:
-                dis_to_next_down = peaks[jj + 1] - peaks[jj]
-                dis_to_next_up = peaks[jj] - peaks[jj - 1]
-
-                point_up = peaks[jj] + first_nonzero - int(1.0 / 1.9 * dis_to_next_up)
-                point_down = peaks[jj] + first_nonzero + int(1.0 / 1.9 * dis_to_next_down)
-            
-            distances = [cv2.pointPolygonTest(contour_text_interest_copy,
-                                              tuple(int(x) for x in np.array([xv[mj], peaks[jj] + first_nonzero])),
-                                              True)
-                         for mj in range(len(xv))]
-            distances = np.array(distances)
-
-            xvinside = xv[distances >= 0]
-            if len(xvinside) == 0:
-                x_min = x_min_cont
-                x_max = x_max_cont
-            else:
-                x_min = np.min(xvinside)  # max(x_min_interest,x_min_cont)
-                x_max = np.max(xvinside)  # min(x_max_interest,x_max_cont)
-
-            p1 = np.dot(rotation_matrix, [int(point_up), int(y_min_cont)])
-            p2 = np.dot(rotation_matrix, [int(point_down), int(y_min_cont)])
-            p3 = np.dot(rotation_matrix, [int(point_down), int(y_max_cont)])
-            p4 = np.dot(rotation_matrix, [int(point_up), int(y_max_cont)])
-
-            x_min_rot1, point_up_rot1 = p1[0] + x_d, p1[1] + y_d
-            x_max_rot2, point_up_rot2 = p2[0] + x_d, p2[1] + y_d
-            x_max_rot3, point_down_rot3 = p3[0] + x_d, p3[1] + y_d
-            x_min_rot4, point_down_rot4 = p4[0] + x_d, p4[1] + y_d
-
-            if x_min_rot1 < 0:
-                x_min_rot1 = 0
-            if x_min_rot4 < 0:
-                x_min_rot4 = 0
-            if point_up_rot1 < 0:
-                point_up_rot1 = 0
-            if point_up_rot2 < 0:
-                point_up_rot2 = 0
-
-            textline_boxes_rot.append(np.array([[[int(x_min_rot1), int(point_up_rot1)]],
-                                                [[int(x_max_rot2), int(point_up_rot2)]],
-                                                [[int(x_max_rot3), int(point_down_rot3)]],
-                                                [[int(x_min_rot4), int(point_down_rot4)]]]))
-            textline_boxes.append(np.array([[[int(x_min), int(point_up)]],
-                                            [[int(x_max), int(point_up)]],
-                                            [[int(x_max), int(point_down)]],
-                                            [[int(x_min), int(point_down)]]]))
-    return peaks, textline_boxes_rot
-
-def separate_lines_new_inside_tiles2(img_patch, _):
-    y = img_patch.sum(axis=1)
+def separate_lines_new_inside_tiles2(mask, _):
+    y = mask.sum(axis=1)
     y_padded = np.pad(y, (20,))
     x = np.arange(len(y))
 
@@ -1010,10 +551,7 @@ def separate_lines_new_inside_tiles2(img_patch, _):
         else:
             peaks_new_tot = peaks_e[:]
 
-        textline_con, hierarchy = return_contours_of_image(img_patch)
-        textline_con_fil = filter_contours_area_of_image(img_patch,
-                                                         textline_con, hierarchy,
-                                                         max_area=1, min_area=0.0008)
+        # textline_con_fil = return_contours_of_class(mask, 1, min_area=0.0008)
         if len(np.diff(peaks_new_tot)):
             y_diff_mean = np.mean(np.diff(peaks_new_tot))  # self.find_contours_mean_y_diff(textline_con_fil)
             sigma_gaus = int(y_diff_mean * (7.0 / 40.0))
@@ -1108,13 +646,13 @@ def separate_lines_new_inside_tiles2(img_patch, _):
 
     def clip(positions):
         # prevent wrap around array bounds
-        return np.maximum(0, np.minimum(img_patch.shape[0] - 1, positions))
+        return np.maximum(0, np.minimum(mask.shape[0] - 1, positions))
 
     peaks_neg_true = clip(np.array(peaks_neg) - 40)
     peaks_pos_true = clip(np.array(peaks) - 20)
 
     # ax1 = plt.subplot(1, 2, 1, title="textline mask slice")
-    # plt.imshow(img_patch, aspect="auto")
+    # plt.imshow(mask, aspect="auto")
     # ax2 = plt.subplot(1, 2, 2, title="projection profile", sharey=ax1)
     # plt.plot(y, x)
     # ax2.scatter(y[peaks_neg_true], peaks_neg_true, color='r', label="neg (0)")
@@ -1128,165 +666,18 @@ def separate_lines_new_inside_tiles2(img_patch, _):
         return (positions[np.newaxis] + offsets[:, np.newaxis]).flatten()
 
     if peaks_neg_true.size:
-        img_patch[clip(add_offsets(peaks_neg_true))] = 0
+        mask[clip(add_offsets(peaks_neg_true))] = 0
 
     if peaks_pos_true.size:
-        img_patch[clip(add_offsets(peaks_pos_true))] = 1
+        mask[clip(add_offsets(peaks_pos_true))] = 1
 
     kernel = np.ones((5, 5), np.uint8)
-    # img_patch = cv2.erode(img_patch,kernel,iterations = 3)
-    img_patch = cv2.erode(img_patch, kernel, iterations=1)
-    return img_patch
-
-def separate_lines_new_inside_tiles(img_path, _):
-    mada_n = img_path.sum(axis=1)
-
-    ##plt.plot(mada_n)
-    ##plt.show()
-
-    first_nonzero = 0  # (next((i for i, x in enumerate(mada_n) if x), None))
-
-    y = mada_n[:]  # [first_nonzero:last_nonzero]
-    y_help = np.zeros(len(y) + 40)
-    y_help[20 : len(y) + 20] = y
-    x = np.array(range(len(y)))
-
-    peaks_real, _ = find_peaks(gaussian_filter1d(y, 3), height=0)
-    if len(peaks_real) <= 2 and len(peaks_real) > 1:
-        sigma_gaus = 10
-    else:
-        sigma_gaus = 5
-
-    z = gaussian_filter1d(y_help, sigma_gaus)
-    zneg_rev = -y_help + np.max(y_help)
-    zneg = np.zeros(len(zneg_rev) + 40)
-    zneg[20 : len(zneg_rev) + 20] = zneg_rev
-    zneg = gaussian_filter1d(zneg, sigma_gaus)
-
-    peaks, _ = find_peaks(z, height=0)
-    peaks_neg, _ = find_peaks(zneg, height=0)
-
-    for nn in range(len(peaks_neg)):
-        if peaks_neg[nn] > len(z) - 1:
-            peaks_neg[nn] = len(z) - 1
-        if peaks_neg[nn] < 0:
-            peaks_neg[nn] = 0
-
-    diff_peaks = np.abs(np.diff(peaks_neg))
-
-    cut_off = 20
-    peaks_neg_true = []
-    forest = []
-
-    for i in range(len(peaks_neg)):
-        if i == 0:
-            forest.append(peaks_neg[i])
-        if i < (len(peaks_neg) - 1):
-            if diff_peaks[i] <= cut_off:
-                forest.append(peaks_neg[i + 1])
-            if diff_peaks[i] > cut_off:
-                if not np.isnan(forest[np.argmin(z[forest])]):
-                    peaks_neg_true.append(forest[np.argmin(z[forest])])
-                forest = []
-                forest.append(peaks_neg[i + 1])
-        if i == (len(peaks_neg) - 1):
-            if not np.isnan(forest[np.argmin(z[forest])]):
-                peaks_neg_true.append(forest[np.argmin(z[forest])])
-
-    diff_peaks_pos = np.abs(np.diff(peaks))
-
-    cut_off = 20
-    peaks_pos_true = []
-    forest = []
-
-    for i in range(len(peaks)):
-        if i == 0:
-            forest.append(peaks[i])
-        if i < (len(peaks) - 1):
-            if diff_peaks_pos[i] <= cut_off:
-                forest.append(peaks[i + 1])
-            if diff_peaks_pos[i] > cut_off:
-                if not np.isnan(forest[np.argmax(z[forest])]):
-                    peaks_pos_true.append(forest[np.argmax(z[forest])])
-                forest = []
-                forest.append(peaks[i + 1])
-        if i == (len(peaks) - 1):
-            if not np.isnan(forest[np.argmax(z[forest])]):
-                peaks_pos_true.append(forest[np.argmax(z[forest])])
-
-
-    if len(peaks_neg_true) > 0:
-        peaks_neg_true = np.array(peaks_neg_true)
-        """
-        #plt.figure(figsize=(40,40))
-        #plt.subplot(1,2,1)
-        #plt.title('Textline segmentation von Textregion')
-        #plt.imshow(img_path)
-        #plt.xlabel('X')
-        #plt.ylabel('Y')
-        #plt.subplot(1,2,2)
-        #plt.title('Dichte entlang X')
-        #base = pyplot.gca().transData
-        #rot = transforms.Affine2D().rotate_deg(90)
-        #plt.plot(zneg,np.array(range(len(zneg))))
-        #plt.plot(zneg[peaks_neg_true],peaks_neg_true,'*')
-        #plt.gca().invert_yaxis()
-
-        #plt.xlabel('Dichte')
-        #plt.ylabel('Y')
-        ##plt.plot([0,len(y)], [grenze,grenze])
-        #plt.show()
-        """
-        peaks_neg_true = peaks_neg_true - 20 - 20
-
-        for i in range(len(peaks_neg_true)):
-            img_path[peaks_neg_true[i] - 6 : peaks_neg_true[i] + 6, :] = 0
-
-    else:
-        pass
-
-    if len(peaks_pos_true) > 0:
-        peaks_pos_true = np.array(peaks_pos_true)
-        peaks_pos_true = peaks_pos_true - 20
-
-        for i in range(len(peaks_pos_true)):
-            img_path[peaks_pos_true[i] - 8 : peaks_pos_true[i] + 8, :] = 1
-    else:
-        pass
-    kernel = np.ones((5, 5), np.uint8)
-
-    # img_path = cv2.erode(img_path,kernel,iterations = 3)
-    img_path = cv2.erode(img_path, kernel, iterations=2)
-    return img_path
-
-def separate_lines_vertical_cont(textline_mask, box_ind):
-    kernel = np.ones((5, 5), np.uint8)
-    min_area = 0
-    max_area = 1
-
-    _, thresh = cv2.threshold(textline_mask.astype(np.uint8), 0, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contours = return_parent_contours(contours, hierarchy)
-    contours = filter_contours_area_of_image_tables(thresh,
-                                                    contours, hierarchy,
-                                                    max_area=max_area,
-                                                    min_area=min_area)
-    contours_final = []
-    for contour in contours:
-        img = np.zeros_like(textline_mask, dtype=np.uint8)
-        img = cv2.fillPoly(img, pts=[contour], color=255)
-        img = cv2.dilate(img, kernel, iterations=4)
-        _, thresh = cv2.threshold(img, 0, 255, 0)
-        contours_text_rot, _ = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-        contours_final.append(contours_text_rot[0])
-
-    return None, contours_final
+    # mask = cv2.erode(mask,kernel,iterations = 3)
+    mask = cv2.erode(mask, kernel, iterations=1)
+    return mask
 
 def textline_contours_postprocessing(textline_mask, angle, contour_parent):
     x, y, w, h = cv2.boundingRect(contour_parent)
-    label = 255
-    textline_mask = textline_mask * label
     kernel = np.ones((5, 5), np.uint8)
     textline_mask = cv2.morphologyEx(textline_mask, cv2.MORPH_OPEN, kernel)
     textline_mask = cv2.morphologyEx(textline_mask, cv2.MORPH_CLOSE, kernel)
@@ -1300,13 +691,9 @@ def textline_contours_postprocessing(textline_mask, angle, contour_parent):
 
     contour_parent = contour_parent - [x, y]
     img = np.zeros((h, w), dtype=np.uint8)
-    img = cv2.fillPoly(img, pts=[contour_parent], color=255)
+    img = cv2.fillPoly(img, pts=[contour_parent], color=1)
     img_d = rotate_image_enlarge(img, angle)
-
-    _, thresh = cv2.threshold(img_d, 0, 255, 0)
-    contours_parent_d, _ = cv2.findContours(thresh.astype(np.uint8),
-                                            cv2.RETR_EXTERNAL,
-                                            cv2.CHAIN_APPROX_SIMPLE)
+    contours_parent_d = return_contours_of_class(img_d, 1)
     contour_parent_d = contours_parent_d[
         np.argmax(map(cv2.contourArea, contours_parent_d))]
 
@@ -1520,10 +907,8 @@ def do_work_of_slopes_new_curved(
     slope = slope_deskew
     if h >= 0.1 * w:
         try:
-            textline_con, hierarchy = return_contours_of_image(img_int_p)
-            textline_con_fil = filter_contours_area_of_image(img_int_p, textline_con,
-                                                             hierarchy,
-                                                             min_area=0.0008 * rel_area)
+            textline_con_fil = return_contours_of_class(
+                img_int_p, 1, min_area=8e-4 * rel_area)
             if len(textline_con_fil) > 1:
                 cx, cy = find_center_of_contours(textline_con_fil)
                 y_diff_mean = np.median(np.diff(np.sort(np.array(cy))))
@@ -1577,7 +962,7 @@ def do_work_of_slopes_new_curved(
         # plt.imshow(mask_textlines_separated_d)
         # plt.show()
 
-        textline_contours = return_contours_of_interested_textline(
+        textline_contours = return_contours_of_class(
             mask_textlines_separated_d, 1, min_area=3e-9 * rel_area)
 
         textlines_cnt_per_region = []
@@ -1592,7 +977,7 @@ def do_work_of_slopes_new_curved(
             # plt.imshow(mask_line)
             # plt.show()
 
-            textline_contours2 = return_contours_of_interested_textline(
+            textline_contours2 = return_contours_of_class(
                 mask_line, 1, min_area=3e-9 * rel_area)
             textline_areas2 = np.array(list(map(cv2.contourArea, textline_contours2)))
             try:
@@ -1605,29 +990,3 @@ def do_work_of_slopes_new_curved(
                                                                     slope, contour_par)
 
     return textlines_cnt_per_region[::-1], slope
-
-def do_work_of_slopes_new_light(
-        box_text, contour, contour_par,
-        textline_mask_tot_ea=None, slope_deskew=0,
-        logger=None
-):
-    if logger is None:
-        logger = getLogger(__package__)
-    logger.debug('enter do_work_of_slopes_new_light')
-
-    x, y, w, h = box_text
-    mask_textline = np.zeros(textline_mask_tot_ea.shape)
-    mask_textline = cv2.fillPoly(mask_textline, pts=[contour], color=(1,1,1))
-    all_text_region_raw = textline_mask_tot_ea * mask_textline
-    all_text_region_raw = all_text_region_raw[y: y + h, x: x + w].astype(np.uint8)
-
-    mask_only_con_region = np.zeros(textline_mask_tot_ea.shape)
-    mask_only_con_region = cv2.fillPoly(mask_only_con_region, pts=[contour_par], color=(1, 1, 1))
-
-    all_text_region_raw = np.copy(textline_mask_tot_ea)
-    all_text_region_raw[mask_only_con_region == 0] = 0
-    cnt_clean_rot_raw, hir_on_cnt_clean_rot = return_contours_of_image(all_text_region_raw)
-    cnt_clean_rot = filter_contours_area_of_image(all_text_region_raw, cnt_clean_rot_raw, hir_on_cnt_clean_rot,
-                                                  max_area=1, min_area=0.00001)
-
-    return cnt_clean_rot, slope_deskew

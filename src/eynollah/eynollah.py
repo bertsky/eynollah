@@ -38,15 +38,11 @@ except ImportError:
 
 from .model_zoo import EynollahModelZoo
 from .utils.contour import (
-    filter_contours_area_of_image,
-    filter_contours_area_of_image_tables,
     find_center_of_contours,
     find_new_features_of_contours,
     find_features_of_contours,
     get_region_confidences,
-    return_contours_of_image,
-    return_contours_of_interested_region,
-    return_parent_contours,
+    return_contours_of_class,
     match_deskewed_contours,
     estimate_skew_contours,
 )
@@ -579,7 +575,7 @@ class Eynollah:
             textline_confidence: np.ndarray,
             slope_deskew: float
     ):
-        textlines_cont = return_contours_of_interested_region(textline_mask_tot, 1, 0.0001)
+        textlines_cont = return_contours_of_class(textline_mask_tot, 1, 1e-4)
         textlines_conf = get_region_confidences(textlines_cont, textline_confidence)
         textlines_cx, textlines_cy = find_center_of_contours(textlines_cont)
         textlines_w_h = [cv2.boundingRect(polygon)[2:] for polygon in textlines_cont]
@@ -755,13 +751,9 @@ class Eynollah:
         #     mask_texts_only = cv2.morphologyEx(mask_texts_only, cv2.MORPH_OPEN, KERNEL, iterations=1)
         mask_texts_only = cv2.dilate(mask_texts_only, kernel=np.ones((2, 2), np.uint8), iterations=1)
 
-        seplines_cont, seplines_hier = return_contours_of_image(mask_seps_only)
-        seplines_cont = filter_contours_area_of_image(
-            mask_seps_only, seplines_cont, seplines_hier, max_area=1, min_area=0.00001, dilate=1)
-
-        texts_only_cont = return_contours_of_interested_region(mask_texts_only,1,0.00001)
-        seps_only_cont = return_contours_of_interested_region(mask_seps_only,1,0.00001)
-        tabs_only_cont = return_contours_of_interested_region(mask_tabs_only,1,0.00001)
+        texts_only_cont = return_contours_of_class(mask_texts_only, 1, min_area=1e-5)
+        seps_only_cont = return_contours_of_class(mask_seps_only, 1, min_area=1e-5)
+        tabs_only_cont = return_contours_of_class(mask_tabs_only, 1, min_area=1e-5)
 
         text_regions_p = np.zeros_like(prediction_regions)
         text_regions_p = cv2.fillPoly(text_regions_p, pts=seps_only_cont, color=label_seps)
@@ -787,7 +779,7 @@ class Eynollah:
         #print("inside 4 ", time.time()-t_in)
         self.logger.debug("exit get_early_layout")
         return (erosion_hurts,
-                seplines_cont,
+                seps_only_cont,
                 texts_only_cont,
                 regions_without_separators,
                 text_regions_p,
@@ -914,130 +906,6 @@ class Eynollah:
                 image_by_region[where][image_by_region[where] == label_seps] = 0
                 image_by_region[where][image_by_region[where] == label_table] = 0
         return image_by_region
-
-    def add_tables_heuristic_to_layout(
-            self, image_regions_eraly_p, boxes,
-            slope_mean_hor, splitter_y, peaks_neg_tot, image_revised,
-            num_col_classifier, min_area, label_seps):
-
-        label_table =10
-        image_revised_1 = self.delete_separator_around(splitter_y, peaks_neg_tot, image_revised, label_seps, label_table)
-
-        try:
-            image_revised_1[:,:30][image_revised_1[:,:30]==label_seps] = 0
-            image_revised_1[:,-30:][image_revised_1[:,-30:]==label_seps] = 0
-        except:
-            pass
-        boxes = np.array(boxes, dtype=int) # to be on the safe side
-
-        img_comm = np.zeros(image_revised_1.shape, dtype=np.uint8)
-        for indiv in np.unique(image_revised_1):
-            image_col = (image_revised_1 == indiv).astype(np.uint8) * 255
-            _, thresh = cv2.threshold(image_col, 0, 255, 0)
-            contours,hirarchy=cv2.findContours(thresh.copy(), cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-
-            if indiv==label_table:
-                main_contours = filter_contours_area_of_image_tables(thresh, contours, hirarchy,
-                                                                     max_area=1, min_area=0.001)
-            else:
-                main_contours = filter_contours_area_of_image_tables(thresh, contours, hirarchy,
-                                                                     max_area=1, min_area=min_area)
-
-            img_comm = cv2.fillPoly(img_comm, pts=main_contours, color=indiv)
-
-        if not isNaN(slope_mean_hor):
-            image_revised_last = np.zeros(image_regions_eraly_p.shape[:2])
-            for i in range(len(boxes)):
-                box_ys = slice(*boxes[i][2:4])
-                box_xs = slice(*boxes[i][0:2])
-                image_box = img_comm[box_ys, box_xs]
-                try:
-                    image_box_tabels_1 = (image_box == label_table) * 1
-                    contours_tab,_=return_contours_of_image(image_box_tabels_1)
-                    contours_tab=filter_contours_area_of_image_tables(image_box_tabels_1,contours_tab,_,1,0.003)
-                    image_box_tabels_1 = (image_box == label_seps).astype(np.uint8) * 1
-                    image_box_tabels_and_m_text = ( (image_box == label_table) |
-                                                    (image_box == 1) ).astype(np.uint8) * 1
-
-                    image_box_tabels_1 = cv2.dilate(image_box_tabels_1, KERNEL, iterations=5)
-
-                    contours_table_m_text, _ = return_contours_of_image(image_box_tabels_and_m_text)
-                    _, thresh = cv2.threshold(image_box_tabels_1, 0, 255, 0)
-                    contours_line, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-                    y_min_main_line ,y_max_main_line=find_features_of_contours(contours_line)
-                    y_min_main_tab ,y_max_main_tab=find_features_of_contours(contours_tab)
-
-                    (cx_tab_m_text, cy_tab_m_text,
-                     x_min_tab_m_text, x_max_tab_m_text,
-                     y_min_tab_m_text, y_max_tab_m_text,
-                     _) = find_new_features_of_contours(contours_table_m_text)
-                    (cx_tabl, cy_tabl,
-                     x_min_tabl, x_max_tabl,
-                     y_min_tabl, y_max_tabl,
-                     _) = find_new_features_of_contours(contours_tab)
-
-                    if len(y_min_main_tab )>0:
-                        y_down_tabs=[]
-                        y_up_tabs=[]
-
-                        for i_t in range(len(y_min_main_tab )):
-                            y_down_tab=[]
-                            y_up_tab=[]
-                            for i_l in range(len(y_min_main_line)):
-                                if (y_min_main_tab[i_t] > y_min_main_line[i_l] and
-                                    y_max_main_tab[i_t] > y_min_main_line[i_l] and
-                                    y_min_main_tab[i_t] > y_max_main_line[i_l] and
-                                    y_max_main_tab[i_t] > y_min_main_line[i_l]):
-                                    pass
-                                elif (y_min_main_tab[i_t] < y_max_main_line[i_l] and
-                                      y_max_main_tab[i_t] < y_max_main_line[i_l] and
-                                      y_max_main_tab[i_t] < y_min_main_line[i_l] and
-                                      y_min_main_tab[i_t] < y_min_main_line[i_l]):
-                                    pass
-                                elif abs(y_max_main_line[i_l] - y_min_main_line[i_l]) < 100:
-                                    pass
-                                else:
-                                    y_up_tab.append(min([y_min_main_line[i_l],
-                                                         y_min_main_tab[i_t]]))
-                                    y_down_tab.append(max([y_max_main_line[i_l],
-                                                           y_max_main_tab[i_t]]))
-
-                            if len(y_up_tab)==0:
-                                y_up_tabs.append(y_min_main_tab[i_t])
-                                y_down_tabs.append(y_max_main_tab[i_t])
-                            else:
-                                y_up_tabs.append(min(y_up_tab))
-                                y_down_tabs.append(max(y_down_tab))
-                    else:
-                        y_down_tabs=[]
-                        y_up_tabs=[]
-                        pass
-                except:
-                    y_down_tabs=[]
-                    y_up_tabs=[]
-
-                for ii in range(len(y_up_tabs)):
-                    image_box[y_up_tabs[ii]:y_down_tabs[ii]] = label_table
-
-                image_revised_last[box_ys, box_xs] = image_box
-        else:
-            for i in range(len(boxes)):
-                box_ys = slice(*boxes[i][2:4])
-                box_xs = slice(*boxes[i][0:2])
-                image_box = img_comm[box_ys, box_xs]
-                image_revised_last[box_ys, box_xs] = image_box
-
-        if num_col_classifier==1:
-            img_tables_col_1 = (image_revised_last == label_table).astype(np.uint8)
-            contours_table_col1, _ = return_contours_of_image(img_tables_col_1)
-
-            _,_ ,_ , _, y_min_tab_col1 ,y_max_tab_col1, _= find_new_features_of_contours(contours_table_col1)
-
-            if len(y_min_tab_col1)>0:
-                for ijv in range(len(y_min_tab_col1)):
-                    image_revised_last[int(y_min_tab_col1[ijv]):int(y_max_tab_col1[ijv])] = label_table
-        return image_revised_last
 
     def get_tables_from_model(self, img):
         table_prediction, table_confidence = do_prediction_new_concept(
@@ -1272,8 +1140,7 @@ class Eynollah:
             textregion_par = cv2.dilate(textregion_par, ver_kernel, iterations=5)
             textregion_par[text_regions_p > 1] = 0
 
-            contours_only_dilated, hir_on_text_dilated = return_contours_of_image(textregion_par)
-            contours_only_dilated = return_parent_contours(contours_only_dilated, hir_on_text_dilated)
+            contours_only_dilated = return_contours_of_class(textregion_par, 1)
 
             indexes_of_located_cont, _, cy_of_located = \
                 self.return_indexes_of_contours_located_inside_another_list_of_contours(
@@ -1682,7 +1549,7 @@ class Eynollah:
 
             textline_mask_tot_ea *= mask_page
             textline_confidence *= mask_page
-            textlines_cont = return_contours_of_interested_region(textline_mask_tot_ea, 1, 0.00001)
+            textlines_cont = return_contours_of_class(textline_mask_tot_ea, 1, min_area=1e-5)
             textlines_conf = get_region_confidences(textlines_cont, textline_confidence)
 
             textlines_cx, textlines_cy = find_center_of_contours(textlines_cont)
@@ -1805,8 +1672,7 @@ class Eynollah:
             regions_without_separators[text_regions_p == label_drop_fl] = 1 # also cover in reading-order
             textline_mask_tot_ea_org[text_regions_p == label_drop_fl] = 0 # skip for textlines
             textline_mask_tot_ea[text_regions_p == label_drop_fl] = 1 # needed for reading order
-            drop_caps_cont = return_contours_of_interested_region(text_regions_p, label_drop_fl,
-                                                                  min_area=0.00003)
+            drop_caps_cont = return_contours_of_class(text_regions_p, label_drop_fl, min_area=3e-5)
             drop_caps_conf = get_region_confidences(drop_caps_cont, regionsfl_confidence)
             drop_caps = [Region(cont, conf=conf)
                          for cont, conf in zip(drop_caps_cont, drop_caps_conf)]
@@ -1817,24 +1683,23 @@ class Eynollah:
             t6 = time.time()
         self.logger.info("Step 3/5: Contour extraction")
 
-        min_area_mar = 0.00001
+        min_area_mar = 1e-5
         marginal_mask = (text_regions_p == label_marg_fl).astype(np.uint8)
         marginal_mask = cv2.dilate(marginal_mask, KERNEL, iterations=2)
-        marginals_cont = return_contours_of_interested_region(marginal_mask, 1, min_area_mar)
+        marginals_cont = return_contours_of_class(marginal_mask, 1, min_area_mar)
         marginals_conf = get_region_confidences(marginals_cont, regions_confidence)
         marginals = [Region(cont, conf=conf)
                      for cont, conf in zip(marginals_cont, marginals_conf)]
-        tables_cont = return_contours_of_interested_region(text_regions_p, label_tabs, min_area_mar)
+        tables_cont = return_contours_of_class(text_regions_p, label_tabs, min_area_mar)
         tables_conf = get_region_confidences(tables_cont, regions_confidence)
         tables = [Region(cont, conf=conf)
                   for cont, conf in zip(tables_cont, tables_conf)]
-        images_cont = return_contours_of_interested_region(text_regions_p, label_imgs_fl)
+        images_cont = return_contours_of_class(text_regions_p, label_imgs_fl, 2e-4)
         images_conf = get_region_confidences(images_cont, regions_confidence)
         images = [Region(cont, conf=conf)
                   for cont, conf in zip(images_cont, images_conf)]
 
-        textregions_cont = return_contours_of_interested_region(text_regions_p, label_text,
-                                                                min_area=MIN_AREA_REGION)
+        textregions_cont = return_contours_of_class(text_regions_p, label_text, MIN_AREA_REGION)
         textregions = [TextRegion(cont, lines=[]) for cont in textregions_cont]
 
         if np.abs(slope_deskew) >= SLOPE_THRESHOLD and not self.reading_order_machine_based:
@@ -1846,8 +1711,7 @@ class Eynollah:
                  textline_mask_tot_ea,
                  regions_without_separators)
 
-            textregions_cont_d = return_contours_of_interested_region(text_regions_p_d, label_text,
-                                                                      min_area=MIN_AREA_REGION)
+            textregions_cont_d = return_contours_of_class(text_regions_p_d, label_text, MIN_AREA_REGION)
             textregions_d = [TextRegion(cont, lines=[]) for cont in textregions_cont_d]
             if (len(textregions) and
                 len(textregions_d)):

@@ -12,15 +12,12 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-from eynollah.utils.contour import filter_contours_area_of_image, return_contours_of_image, return_contours_of_interested_region
-from eynollah.utils.resize import resize_image
-
 from .model_zoo.model_zoo import EynollahModelZoo
 from .writer import EynollahXmlWriter
 from .eynollah import Eynollah
-from .utils import box2rect, is_image_filename
 from .plot import EynollahPlotter
-from .utils import Region
+from .utils import box2rect, is_image_filename, Region
+from .utils.resize import resize_image
 
 class EynollahPageExtractor(Eynollah):
 

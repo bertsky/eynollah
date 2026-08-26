@@ -21,10 +21,8 @@ from .is_nan import isNaN
 from .contour import (contour2polygon,
                       contours_in_same_horizon,
                       find_center_of_contours,
-                      find_new_features_of_contours,
                       polygon2contour,
-                      return_contours_of_image,
-                      return_parent_contours)
+                      return_contours_of_class)
 
 
 def pairwise(iterable):
@@ -740,41 +738,6 @@ def find_num_col_by_vertical_lines(regions_without_separators, multiplier=3.8):
     # plt.show()
     return peaks
 
-def put_drop_out_from_only_drop_model(layout_no_patch, layout1):
-    if layout_no_patch.ndim == 3:
-        layout_no_patch = layout_no_patch[:, :, 0]
-
-    drop_only = (layout_no_patch[:, :] == 4) * 1
-    contours_drop, hir_on_drop = return_contours_of_image(drop_only)
-    contours_drop_parent = return_parent_contours(contours_drop, hir_on_drop)
-
-    areas_cnt_text = np.array([cv2.contourArea(contours_drop_parent[j])
-                               for j in range(len(contours_drop_parent))])
-    areas_cnt_text = areas_cnt_text / float(drop_only.shape[0] * drop_only.shape[1])
-    contours_drop_parent = [contours_drop_parent[jz]
-                            for jz in range(len(contours_drop_parent))
-                            if areas_cnt_text[jz] > 0.00001]
-    areas_cnt_text = [areas_cnt_text[jz]
-                      for jz in range(len(areas_cnt_text))
-                      if areas_cnt_text[jz] > 0.00001]
-
-    contours_drop_parent_final = []
-    for jj in range(len(contours_drop_parent)):
-        x, y, w, h = cv2.boundingRect(contours_drop_parent[jj])
-        # boxes.append([int(x), int(y), int(w), int(h)])
-
-        map_of_drop_contour_bb = np.zeros((layout1.shape[0], layout1.shape[1]))
-        map_of_drop_contour_bb[y : y + h, x : x + w] = layout1[y : y + h, x : x + w]
-        if (100. *
-            (map_of_drop_contour_bb == 1).sum() /
-            (map_of_drop_contour_bb == 5).sum()) >= 15:
-            contours_drop_parent_final.append(contours_drop_parent[jj])
-
-    layout_no_patch[:, :][layout_no_patch[:, :] == 4] = 0
-    layout_no_patch = cv2.fillPoly(layout_no_patch, pts=contours_drop_parent_final, color=4)
-
-    return layout_no_patch
-
 def fill_bb_of_drop_capitals(
         full_prediction, early_prediction,
         label_bg=0,
@@ -787,19 +750,14 @@ def fill_bb_of_drop_capitals(
     and early layout model (after post-processing), re-assign regions which
     are (large enough and) majority classified as drop-capital to that label.
     """
-    area_tot = full_prediction.size
-    drop_only = (full_prediction == label_drop_fl_model) * 1
-    contours_drop, hir_on_drop = return_contours_of_image(drop_only)
-    contours_drop_parent = return_parent_contours(contours_drop, hir_on_drop)
+    drop_mask = (full_prediction == label_drop_fl_model).astype(np.uint8)
+    drop_cont = return_contours_of_class(drop_mask, 1, 1e-5)
     text_mask = ((early_prediction == label_text) |
                  (early_prediction == label_imgs))
     _, text_segs, text_bbox, _ = cv2.connectedComponentsWithStats(early_prediction * text_mask)
 
-    contours_drop_parent_final = []
-    for contour in contours_drop_parent:
+    for contour in drop_cont:
         area_drop = cv2.contourArea(contour)
-        if area_drop <= 0.00001 * area_tot:
-            continue
         x, y, w, h = cv2.boundingRect(contour)
         box = slice(y, y + h), slice(x, x + w)
         area_box = w * h

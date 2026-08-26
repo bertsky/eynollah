@@ -8,7 +8,7 @@ from scipy.ndimage import gaussian_filter1d
 from .contour import (
     contour2polygon,
     polygon2contour,
-    return_contours_of_interested_region,
+    return_contours_of_class,
 )
 from .resize import resize_image
 from .rotate import rotate_image
@@ -425,7 +425,7 @@ def get_marginals(num_col, slope_deskew,
 
     # re-assign (marg/main), cutting through existing contours if necessary
     min_area_text = 0.00001
-    text_contours = return_contours_of_interested_region(early_layout, label_text, min_area_text)
+    text_contours = return_contours_of_class(early_layout, label_text, min_area_text)
     marg_contours = []
     for cont in text_contours:
         poly = contour2polygon(cont)

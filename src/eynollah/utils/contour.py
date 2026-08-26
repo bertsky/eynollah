@@ -34,38 +34,17 @@ def get_text_region_boxes_by_given_contours(contours):
     return [cv2.boundingRect(contour)
             for contour in contours]
 
-def filter_contours_area_of_image(image, contours, hierarchy, max_area=1.0, min_area=0.0, dilate=0):
+def filter_contours_area_of_image(image, contours, hierarchy, max_area=1.0, min_area=0.0):
     found_polygons_early = []
     for jv, contour in enumerate(contours):
         if len(contour) < 3:  # A polygon cannot have less than 3 points
             continue
 
-        polygon = contour2polygon(contour, dilate=dilate)
-        area = polygon.area
+        area = cv2.contourArea(contour)
         if (area >= min_area * np.prod(image.shape[:2]) and
             area <= max_area * np.prod(image.shape[:2]) and
             hierarchy[0][jv][3] == -1):
-            found_polygons_early.append(polygon2contour(polygon))
-    return found_polygons_early
-
-def filter_contours_area_of_image_tables(image, contours, hierarchy, max_area=1.0, min_area=0.0, dilate=0):
-    found_polygons_early = []
-    for jv, contour in enumerate(contours):
-        if len(contour) < 3:  # A polygon cannot have less than 3 points
-            continue
-
-        polygon = contour2polygon(contour, dilate=dilate)
-        # area = cv2.contourArea(contour)
-        area = polygon.area
-        ##print(np.prod(thresh.shape[:2]))
-        # Check that polygon has area greater than minimal area
-        # print(hierarchy[0][jv][3],hierarchy )
-        if (area >= min_area * image.size and
-            area <= max_area * image.size and
-            # hierarchy[0][jv][3]==-1
-            True):
-            # print(contour[0][0][1])
-            found_polygons_early.append(polygon2contour(polygon))
+            found_polygons_early.append(contour)
     return found_polygons_early
 
 def find_center_of_contours(contours):
@@ -106,19 +85,14 @@ def return_parent_contours(contours, hierarchy):
                        if hierarchy[0][i][3] == -1]
     return contours_parent
 
-def return_contours_of_interested_region(region_pre_p, label, min_area=0.0002, dilate=0):
-    if region_pre_p.ndim == 3:
-        mask = (region_pre_p[:, :, 0] == label).astype(np.uint8)
-    else:
-        mask = (region_pre_p[:, :] == label).astype(np.uint8)
+def return_contours_of_class(region_pre_p, label, min_area=0.0):
+    mask = (region_pre_p == label).astype(np.uint8)
 
-    contours_imgs, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contours_imgs = return_parent_contours(contours_imgs, hierarchy)
-    contours_imgs = filter_contours_area_of_image_tables(mask, contours_imgs, hierarchy,
-                                                         max_area=1,
-                                                         min_area=min_area,
-                                                         dilate=dilate)
-    return contours_imgs
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours = filter_contours_area_of_image(mask, contours, hierarchy,
+                                             max_area=1.0,
+                                             min_area=min_area)
+    return contours
 
 def get_region_confidences(cnts, confidence_matrix):
     if not len(cnts):
@@ -134,38 +108,6 @@ def get_region_confidences(cnts, confidence_matrix):
         cnt_mask = cv2.fillPoly(cnt_mask, pts=[cnt // 6], color=1.0)
         confs.append(np.sum(confidence_matrix * cnt_mask) / np.sum(cnt_mask))
     return confs
-
-def return_contours_of_interested_textline(region_pre_p, label, min_area=0.0):
-    cnts_images = (region_pre_p == label).astype(np.uint8)
-    contours_imgs, hierarchy = cv2.findContours(cnts_images, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contours_imgs = return_parent_contours(contours_imgs, hierarchy)
-    contours_imgs = filter_contours_area_of_image_tables(
-        cnts_images, contours_imgs, hierarchy, max_area=1, min_area=min_area)
-    return contours_imgs
-
-def return_contours_of_image(image):
-    if len(image.shape) == 2:
-        image = image.astype(np.uint8)
-        imgray = image
-    else:
-        image = image.astype(np.uint8)
-        imgray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(imgray, 0, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    return contours, hierarchy
-
-def dilate_textline_contours(all_found_textline_polygons):
-    from . import ensure_array
-    return [ensure_array(
-        [polygon2contour(contour2polygon(contour, dilate=6))
-         for contour in region])
-            for region in all_found_textline_polygons]
-
-def dilate_textregion_contours(all_found_textregion_polygons):
-    from . import ensure_array
-    return ensure_array(
-        [polygon2contour(contour2polygon(contour, dilate=6))
-         for contour in all_found_textregion_polygons])
 
 def match_deskewed_contours(
         slope_deskew: float,
@@ -449,9 +391,7 @@ def join_polygons(polygons: Sequence[Polygon], scale=20) -> Polygon:
     for prevp, nextp in zip(*dists.nonzero()):
         prevp = polygons[prevp]
         nextp = polygons[nextp]
-        nearest = nearest_points(prevp, nextp)
-        bridgep = orient(LineString(nearest).buffer(max(1, scale/5), resolution=1), -1)
-        polygons.append(bridgep)
+        polygons.append(bridge_polygons(prevp, nextp, max(1, scale/5)))
     jointp = unary_union(polygons)
     if jointp.geom_type == 'MultiPolygon':
         jointp = unary_union(jointp.geoms)
@@ -464,3 +404,9 @@ def join_polygons(polygons: Sequence[Polygon], scale=20) -> Polygon:
         jointp2 = make_valid(jointp2)
     assert jointp2.geom_type == 'Polygon', jointp2.wkt
     return jointp2
+
+def bridge_polygons(poly1, poly2, strength=1):
+    nearest = nearest_points(poly1, poly2)
+    bridgep = orient(LineString(nearest).buffer(strength, resolution=1), -1)
+    return bridgep
+
