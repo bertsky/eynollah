@@ -977,17 +977,17 @@ def order_of_regions(textline_mask, contours_main, contours_head, contours_drop,
     assert total == 0 or np.any(textline_mask)
 
     # ax1 = plt.subplot(1, 2, 1, title="order_of_regions textline_mask")
-    # plt.imshow(textline_mask, aspect='auto')
+    # ax1.imshow(textline_mask, aspect='auto')
     y = textline_mask.sum(axis=1) # horizontal projection profile
     y_padded = np.zeros(len(y) + 40)
     y_padded[20 : len(y) + 20] = y
 
-    sigma_gaus = 8
+    sigma_gaus = 5
     #z = gaussian_filter1d(y_padded, sigma_gaus)
     #peaks, _ = find_peaks(z, height=0)
     #peaks = peaks - 20
     # ax2 = plt.subplot(1, 2, 2, title="smoothed horizontal projection", sharey=ax1)
-    # ax2plot = plt.plot(y)[0]
+    # ax2plot = ax2.plot(y, label="projection", color="r")[0]
     # xdata = ax2plot.get_xdata()
     # ydata = ax2plot.get_ydata()
     # ax2plot.set_xdata(ydata)
@@ -1000,7 +1000,9 @@ def order_of_regions(textline_mask, contours_main, contours_head, contours_drop,
     zneg = gaussian_filter1d(zneg, sigma_gaus)
 
     peaks_neg, _ = find_peaks(zneg, height=0)
-    # plt.hlines(peaks_neg - 40, 0, textline_mask.shape[1], label="peaks")
+    # ax2.hlines(peaks_neg - 40, 0, textline_mask.shape[1], label="peaks")
+    # ax1.hlines(peaks_neg - 40, 0, textline_mask.shape[1], label="peaks")
+    # plt.legend()
     # plt.show()
     peaks_neg = peaks_neg - 20 - 20
 
