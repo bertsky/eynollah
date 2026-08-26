@@ -63,6 +63,7 @@ def get_marginals(num_col, slope_deskew,
     If there are no candidates on one side, then try finding steps
     in the text mask (as jumps in its vertical projection curve).
     Pick the steepest jumps that introduce a suitable plateau.
+    (But suppress jumps merely caused by left / right indentation.)
 
     Constrain the ranges of left and right points depending on the
     given number of columns:
@@ -128,7 +129,8 @@ def get_marginals(num_col, slope_deskew,
     # plt.subplot(1, 3, 3, title="horizontally eroded")
     # plt.imshow(text_mask_d)
     # plt.show()
-    text_mask_d_y = text_mask_d.sum(axis=0)
+    text_mask_d_y = text_mask_d.sum(axis=0) # len = width
+    #text_mask_d_x = text_mask_d.sum(axis=1) # len = height
 
     max_text_thickness = text_mask_d_y.max()
     max_text_thickness_percent = 100. * max_text_thickness / height
@@ -154,29 +156,32 @@ def get_marginals(num_col, slope_deskew,
         # plt.show()
         return
 
-    region_sum_0 = gaussian_filter1d(text_mask_d_y, 3)
-    first_nonzero = region_sum_0.nonzero()[0][0] # outer left
-    last_nonzero = region_sum_0.nonzero()[0][-1] # outer right
+    text_mask_d_ys = gaussian_filter1d(text_mask_d_y, 3)
+    #text_mask_d_xs = gaussian_filter1d(text_mask_d_x, 3)
+    first_nonzero = text_mask_d_ys.nonzero()[0][0] # outer left
+    last_nonzero = text_mask_d_ys.nonzero()[0][-1] # outer right
     mid_point = (last_nonzero + first_nonzero) // 2
-    one_third_r = (last_nonzero - mid_point) / 3.0
-    one_third_l = (mid_point - first_nonzero) / 3.0
-
-    # find minima (horizontal gaps)
-    peaks, props = find_peaks(max_text_thickness - region_sum_0,#text_mask_d_y,
-                              # constrain thickness lower bound (min_text_thickness)
-                              #height=0.5 * max_text_thickness,
-                              height=max_text_thickness - min_text_thickness,
-                              # constrain the prominence towards neighbours
-                              prominence=0.5 * min_text_thickness,
-                              # constrain the distance at least 2 characters at 12pt
-                              distance=MIN_DIST_GAPS)
+    mid_point_l = mid_point - (mid_point - first_nonzero) // 3
+    mid_point_r = mid_point + (last_nonzero - mid_point) // 3
     
-    # plt.figure("peaks")
+    # find minima (horizontal gaps)
+    gaps_y, props_y = find_peaks(
+        max_text_thickness - text_mask_d_ys,
+        # constrain thickness lower bound (min_text_thickness)
+        #height=0.5 * max_text_thickness,
+        height=max_text_thickness - min_text_thickness,
+        # constrain the prominence towards neighbours
+        prominence=0.5 * min_text_thickness,
+        # constrain the distance at least 2 characters at 12pt
+        distance=MIN_DIST_GAPS)
+
+    # plt.figure("gaps")
     # ax1 = plt.subplot(2, 2, 1, title="text_mask_d")
     # ax1.imshow(text_mask_d, aspect='auto')
+    # ax3 = plt.subplot(2, 2, 2, title="text_mask_d_x", sharey=ax1)
     # ax2 = plt.subplot(2, 2, 3, title="text_mask_d_y", sharex=ax1)
     # ax2.plot(list(range(width)), text_mask_d_y, label='unsmoothed', color='b')
-    # ax2.plot(list(range(width)), region_sum_0, label='smoothed', color='m')
+    # ax2.plot(list(range(width)), text_mask_d_ys, label='smoothed', color='m')
     # ax2.hlines(int(0.14 * height), 0, width,
     #            label='max_text_thickness=14%', colors='r')
     # ax2.hlines([min_text_thickness], 0, width,
@@ -188,121 +193,42 @@ def get_marginals(num_col, slope_deskew,
     # ax2.scatter([np.argmax(text_mask_d_y)],
     #             [text_mask_d_y.max()], color='r',
     #             label='max = %d%%' % max_text_thickness_percent)
-    # ax2.scatter(peaks, region_sum_0[peaks], label='peaks', color='m')
-    # #ax2.scatter(peaks, props['prominences'], label='prominences')
+    # ax2.scatter(gaps_y, text_mask_d_ys[gaps_y], label='gaps_y', color='m')
+    # # for i in range(len(peaks_y)):
+    # #     ax2.text(gaps_y[i], text_mask_d_ys[gaps_y[i]], str(props_y['prominences'][i]))
     # ax1 = plt.subplot(2, 2, 4, title="early layout")
     # ax1.imshow(early_layout, aspect='auto')
     # plt.legend()
 
     # also calculate the product of prominence and height (for final selection)
-    scores = np.zeros(peaks.max(initial=width) + 1)
-    scores[peaks] = props['prominences'] * props['peak_heights']
+    scores = np.zeros(gaps_y.max(initial=width) + 1)
+    scores[gaps_y] = props_y['prominences'] * props_y['peak_heights']
 
-    peaks = peaks[(peaks > first_nonzero) & (peaks < last_nonzero)]
+    gaps_y = gaps_y[(gaps_y > first_nonzero) & (gaps_y < last_nonzero)]
 
     if num_col == 1:
-        peaks_r = peaks[peaks > mid_point]
-        peaks_l = peaks[peaks < mid_point]
+        gaps_r = gaps_y[gaps_y > mid_point]
+        gaps_l = gaps_y[gaps_y < mid_point]
     elif num_col == 2:
-        peaks_r = peaks[peaks > mid_point + one_third_r]
-        peaks_l = peaks[peaks < mid_point - one_third_l]
+        gaps_r = gaps_y[gaps_y > mid_point_r]
+        gaps_l = gaps_y[gaps_y < mid_point_l]
     else:
         # should not happen, anyway
         return
 
-    # if there are no valid peaks (i.e. gaps) on either side,
-    # because marginalia are very close to main,
-    # then look at positive/negative peaks of derivative on left/right side,
-    # to identify smaller plateaus of sufficient thickness:
-    if len(peaks_l) == 0:
-        region_sum_1 = np.diff(region_sum_0[:mid_point+1].astype(int))
-        peaks2, _ = find_peaks(region_sum_1,
-                               # constrain slope lower bound
-                               height=0.04 * max_text_thickness,
-                               # constrain the distance at least 2 characters at 12pt
-                               distance=MIN_DIST_GAPS)
-        # ax2.plot(list(range(mid_point)), region_sum_1, label='derivative', color='g')
-        # ax2.scatter(peaks2, region_sum_1[peaks2], label='peaks2', color='g')
-        # ax2.hlines([0.04 * max_text_thickness], 0, width,
-        #            label='min2', colors='lightgreen')
-        if num_col == 1:
-            peaks2_l = peaks2[peaks2 < mid_point]
-        else:
-            peaks2_l = peaks2[peaks2 < mid_point - one_third_l]
-        # search from right (widest) to left
-        for peak2 in reversed(peaks2_l):
-            if peak2 < first_nonzero + MIN_DIST_GAPS:
-                continue
-            # non-zero, non-max plateau
-            if (MIN_THICKNESS_STEP_FRACT_MAIN
-                < (np.mean(region_sum_0[first_nonzero: peak2]) / 
-                   np.mean(region_sum_0[peak2: mid_point])) <
-                MAX_THICKNESS_STEP_FRACT_MAIN):
-                peaks_l = [peak2]
-                # ax2.vlines([peak2], 0, height, label='peak2', colors='y')
-                break
-            # TODO: try another criterion: deviation in average textline heights
-    if len(peaks_r) == 0:
-        region_sum_1 = -np.diff(region_sum_0[mid_point-1:].astype(int))
-        peaks2, _ = find_peaks(region_sum_1,
-                               # constrain slope lower bound
-                               height=0.04 * max_text_thickness,
-                               # constrain the distance at least 2 characters at 12pt
-                               distance=MIN_DIST_GAPS)
-        # ax2.plot(np.arange(mid_point, width), region_sum_1, label='derivative', color='g')
-        # ax2.scatter(peaks2 + mid_point, region_sum_1[peaks2], label='peaks2', color='g')
-        # ax2.hlines([0.04 * max_text_thickness], 0, width,
-        #            label='min2', colors='lightgreen')
-        peaks2 += mid_point
-        if num_col == 1:
-            peaks2_r = peaks2[peaks2 > mid_point]
-        else:
-            peaks2_r = peaks2[peaks2 > mid_point + one_third_r]
-        # search from left (widest) to right
-        for peak2 in peaks2_r:
-            if peak2 > last_nonzero - MIN_DIST_GAPS:
-                continue
-            # non-zero, non-max plateau
-            if (MIN_THICKNESS_STEP_FRACT_MAIN
-                < (np.mean(region_sum_0[peak2: last_nonzero]) /
-                   np.mean(region_sum_0[mid_point: peak2])) <
-                MAX_THICKNESS_STEP_FRACT_MAIN):
-                peaks_r = [peak2]
-                # ax2.vlines([peak2], 0, height, label='peak2', colors='y')
-                break
-    # ax2.legend()
-    # plt.show()
-
-    if len(peaks_l) == 0:
-        if len(peaks_r) == 0:
-            # plt.figure("no left or right peaks")
-            # ax1 = plt.subplot(2, 1, 1, title='text_mask_d (deskewed text+sep mask)')
-            # ax1.imshow(text_mask_d, aspect='auto')
-            # ax1.vlines([first_nonzero], 0, height, label='first_nonzero', colors='r')
-            # ax1.vlines([last_nonzero], 0, height, label='last_nonzero', colors='r')
-            # ax1.vlines(peaks_l, 0, height, label='peaks_l', colors='orange')
-            # ax1.vlines(peaks_r, 0, height, label='peaks_r', colors='orange')
-            # ax1.legend()
-            # ax2 = plt.subplot(2, 1, 2, title='text_mask_d_y (smoothed)', sharex=ax1)
-            # ax2.plot(list(range(width)), region_sum_0)
-            # ax2.hlines(min_text_thickness, 0, width, colors='g',
-            #            label='min_text_thickness=%d' % min_text_thickness)
-            # ax2.scatter(peaks_orig, region_sum_0[peaks_orig], label='peaks')
-            # ax2.legend()
-            # plt.show()
-            return
-        point_r = peaks_r[np.argmax(scores[peaks_r])]
-        #point_l = first_nonzero
-        point_l = 0
-    elif len(peaks_r) == 0:
-        point_l = peaks_l[np.argmax(scores[peaks_l])]
-        #point_r = last_nonzero
-        point_r = width - 1
+    if len(gaps_r):
+        best_r = np.argmax(scores[gaps_r])
+        point_r = gaps_r[best_r]
     else:
-        best_l = np.argmax(scores[peaks_l])
-        best_r = np.argmax(scores[peaks_r])
-        point_l = peaks_l[best_l]
-        point_r = peaks_r[best_r]
+        point_r = width - 1
+        #point_r = last_nonzero
+    if len(gaps_l):
+        best_l = np.argmax(scores[gaps_l])
+        point_l = gaps_l[best_l]
+    else:
+        point_l = 0
+        #point_l = first_nonzero
+    if len(gaps_r) and len(gaps_l):
         if scores[best_l] < 0.1 * scores[best_r]:
             point_l = 0
             #point_l = first_nonzero
@@ -310,14 +236,149 @@ def get_marginals(num_col, slope_deskew,
             point_r = 0
             #point_r = last_nonzero
 
-    # plt.figure("final peaks")
+    # if there are no valid peaks (i.e. gaps) on either side,
+    # because marginalia are very close to main,
+    # then look at positive/negative peaks of derivative on left/right side,
+    # to identify smaller plateaus of sufficient thickness:
+    if len(gaps_l) == 0:
+        text_mask_d_ys2 = np.diff(text_mask_d_ys[:mid_point+1].astype(int))
+        jumps, _ = find_peaks(text_mask_d_ys2,
+                              # constrain slope lower bound
+                              height=0.04 * max_text_thickness,
+                              # constrain the distance at least 2 characters at 12pt
+                              distance=MIN_DIST_GAPS)
+        # ax2.plot(list(range(mid_point)), text_mask_d_ys2, label='derivative', color='g')
+        # ax2.scatter(jumps, text_mask_d_ys2[jumps], label='jumps', color='g')
+        # ax2.hlines([0.04 * max_text_thickness], 0, width,
+        #            label='min2', colors='lightgreen')
+        if num_col == 1:
+            jumps_l = jumps[jumps < mid_point]
+        else:
+            jumps_l = jumps[jumps < mid_point_l]
+        # to discern between left marginalia and left indentation,
+        # analyse horizontal projection of (left half) of text mask:
+        # if there are subpeaks left of (=above) the main peaks (=paragraphs)
+        # and the average difference between them is approximately the jump point
+        # then that jump point cannot be from genuine marginalia
+        text_mask_d_lx = text_mask_d[:, :mid_point_l].sum(axis=1)
+        text_mask_d_lxs = gaussian_filter1d(text_mask_d_lx, 3)
+        text_mask_d_lxs2 = np.diff(text_mask_d_lxs.astype(int))
+        peaks_lx, props_lx = find_peaks(text_mask_d_lx,
+                                        prominence=MIN_DIST_GAPS)
+        props_lx['prominences_l'] = text_mask_d_lx[peaks_lx] - text_mask_d_lx[props_lx['left_bases']]
+        med_main_width_l = np.median(text_mask_d_lx[peaks_lx])
+        # ax3.plot(text_mask_d_lx, list(range(height)), label='unsmoothed', color='b')
+        # ax3.plot(text_mask_d_lxs, list(range(height)), label='smoothed', color='m')
+        # ax3.scatter(text_mask_d_lx[peaks_lx], peaks_lx, label='peaks_lx', color='m')
+        # ax3.scatter(text_mask_d_lx[props_lx['left_bases']], props_lx['left_bases'], label='bases_l', color='g')
+        # for i in range(len(peaks_lx)):
+        #     ax3.text(text_mask_d_lx[peaks_lx[i]], peaks_lx[i], str(props_lx['prominences_l'][i]))
+        # ax3.vlines([med_main_width_l], 0, height, colors='m')
+        if np.isclose(med_main_width_l,
+                      mid_point_l - first_nonzero,
+                      rtol=0.1):
+            flexpoints_lx, _ = find_peaks(np.abs(text_mask_d_lxs2 < 3))
+            #ax3.scatter(text_mask_d_lx[flexpoints_lx], flexpoints_lx, label="flexpoints_lx", color='y')
+            subpeaks_lx = flexpoints_lx[
+                ~np.isclose(text_mask_d_lx[flexpoints_lx], med_main_width_l, rtol=0.05) &
+                ~np.isclose(text_mask_d_lx[flexpoints_lx], 0, atol=20)]
+            subpeaks_lx = subpeaks_lx[np.searchsorted(props_lx['left_bases'], subpeaks_lx, 'right')
+                                      == np.searchsorted(peaks_lx, subpeaks_lx)]
+            if len(subpeaks_lx):
+                med_preceding_width_l = np.median(text_mask_d_lx[subpeaks_lx])
+                jumps_l = jumps_l[
+                    ~np.isclose(jumps_l - first_nonzero,
+                                med_main_width_l - med_preceding_width_l,
+                                rtol=0.1, atol=10)]
+                # ax3.scatter(text_mask_d_lx[subpeaks_lx], subpeaks_lx, label="subpeaks_lx", color='y')
+                # ax3.vlines([med_preceding_width_l], 0, height, colors='b')
+        # search from right (widest) to left
+        for jump in reversed(jumps_l):
+            if jump < first_nonzero + MIN_DIST_GAPS:
+                continue
+            # non-zero, non-max plateau
+            if (MIN_THICKNESS_STEP_FRACT_MAIN
+                < (np.mean(text_mask_d_ys[first_nonzero: jump]) / 
+                   np.mean(text_mask_d_ys[jump: mid_point])) <
+                MAX_THICKNESS_STEP_FRACT_MAIN):
+                point_l = jump
+                # ax2.vlines([jump], 0, height, label='jump', colors='y')
+                break
+            # TODO: try another criterion: deviation in average textline heights
+    if len(gaps_r) == 0:
+        text_mask_d_ys2 = -np.diff(text_mask_d_ys[mid_point-1:].astype(int))
+        jumps, _ = find_peaks(text_mask_d_ys2,
+                              # constrain slope lower bound
+                              height=0.04 * max_text_thickness,
+                              # constrain the distance at least 2 characters at 12pt
+                              distance=MIN_DIST_GAPS)
+        # ax2.plot(np.arange(mid_point, width), text_mask_d_ys2, label='derivative', color='g')
+        # ax2.scatter(jumps + mid_point, text_mask_d_ys2[jumps], label='jumps', color='g')
+        # ax2.hlines([0.04 * max_text_thickness], 0, width,
+        #            label='min2', colors='lightgreen')
+        jumps += mid_point
+        if num_col == 1:
+            jumps_r = jumps[jumps > mid_point]
+        else:
+            jumps_r = jumps[jumps > mid_point_r]
+        # to discern between right marginalia and right indentation
+        # (i.e. unjustified final lines of a paragraph),
+        # analyse horizontal projection of (right half) of text mask:
+        # if there are subpeaks right of (=below) the main peaks (=paragraphs)
+        # and the average difference between them is approximately the jump point
+        # then that jump point cannot be from genuine marginalia
+        text_mask_d_rx = text_mask_d[:, mid_point_r:].sum(axis=1)
+        text_mask_d_rxs = gaussian_filter1d(text_mask_d_rx, 3)
+        text_mask_d_rxs2 = np.diff(text_mask_d_rxs.astype(int))
+        peaks_rx, props_rx = find_peaks(text_mask_d_rx,
+                                        prominence=MIN_DIST_GAPS)
+        props_rx['prominences_r'] = text_mask_d_rx[peaks_rx] - text_mask_d_rx[props_rx['right_bases']]
+        med_main_width_r = np.median(text_mask_d_rx[peaks_rx])
+        # ax3.plot(text_mask_d_rx + mid_point_r, list(range(height)), label='unsmoothed', color='b')
+        # ax3.plot(text_mask_d_rxs + mid_point_r, list(range(height)), label='smoothed', color='m')
+        # ax3.scatter(text_mask_d_rx[peaks_rx] + mid_point_r, peaks_rx, label='peaks_rx', color='m')
+        # ax3.scatter(text_mask_d_rx[props_rx['left_bases']] + mid_point_r, props_rx['left_bases'], label='bases_r', color='g')
+        # for i in range(len(peaks_rx)):
+        #     ax3.text(text_mask_d_rx[peaks_rx[i]] + mid_point_r, peaks_rx[i], str(props_rx['prominences_r'][i]))
+        # ax3.vlines([med_main_width_r + mid_point_r], 0, height, colors='m')
+        if np.isclose(med_main_width_r,
+                      last_nonzero - mid_point_r,
+                      rtol=0.1):
+            flexpoints_rx, _ = find_peaks(np.abs(text_mask_d_rxs2 < 3))
+            #ax3.scatter(text_mask_d_rx[flexpoints_rx] + mid_point_r, flexpoints_rx, label="flexpoints_rx", color='y')
+            subpeaks_rx = flexpoints_rx[
+                ~np.isclose(text_mask_d_rx[flexpoints_rx], med_main_width_r, rtol=0.05) &
+                ~np.isclose(text_mask_d_rx[flexpoints_rx], 0, atol=20)]
+            subpeaks_rx = subpeaks_rx[np.searchsorted(peaks_rx, subpeaks_rx, 'right') ==
+                                      np.searchsorted(props_rx['right_bases'], subpeaks_rx)]
+            if len(subpeaks_rx):
+                med_following_width_r = np.median(text_mask_d_rx[subpeaks_rx])
+                jumps_r = jumps_r[
+                    ~np.isclose(last_nonzero - jumps_r,
+                                med_main_width_r - med_following_width_r,
+                                rtol=0.1, atol=10)]
+                # ax3.scatter(text_mask_d_rx[subpeaks_rx] + mid_point_r, subpeaks_rx, label="subpeaks_rx", color='y')
+                # ax3.vlines([med_following_width_r + mid_point_r], 0, height, colors='b')
+        # search from left (widest) to right
+        for jump in jumps_r:
+            if jump > last_nonzero - MIN_DIST_GAPS:
+                continue
+            # non-zero, non-max plateau
+            if (MIN_THICKNESS_STEP_FRACT_MAIN
+                < (np.mean(text_mask_d_ys[jump: last_nonzero]) /
+                   np.mean(text_mask_d_ys[mid_point: jump])) <
+                MAX_THICKNESS_STEP_FRACT_MAIN):
+                point_r = jump
+                # ax2.vlines([jump], 0, height, label='jump', colors='y')
+                break
+    # ax3.legend()
+    # ax2.legend()
+    # plt.show()
+
+    # plt.figure("final points")
     # ax1 = plt.subplot(2, 2, 1)
     # ax1.title.set_text('text_mask_d (deskewed text+table mask)')
     # ax1.imshow(text_mask_d)
-    # ax1.vlines(peaks_l, 0, height, label='peaks_l', colors='b')
-    # ax1.vlines(peaks_r, 0, height, label='peaks_r', colors='b')
-    # ax1.vlines([first_nonzero], 0, height, label='first_nonzero', colors='g')
-    # ax1.vlines([last_nonzero], 0, height, label='last_nonzero', colors='g')
     # ax1.vlines([point_l], 0, height, label='point_l', colors='r')
     # ax1.vlines([point_r], 0, height, label='point_r', colors='r')
     # ax2 = plt.subplot(2, 2, 2, title='main_mask_d (deskewed main mask)', sharey=ax1)
@@ -330,6 +391,9 @@ def get_marginals(num_col, slope_deskew,
     # ax4.imshow(early_layout)
     # plt.legend()
     # plt.show()
+
+    if point_l == 0 and point_r == width - 1:
+        return
 
     # rotate back (into undeskewed/original shape as early_layout input):
     marg_l = Polygon([[point_l, 0], [point_l, height],
