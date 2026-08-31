@@ -525,7 +525,7 @@ class Eynollah:
         if N > 1:
             mean_y_diff = np.median(diff_cy)
             mean_x_diff = np.median(diff_cx)
-            count_hor = np.count_nonzero(np.diff(textlines_w_h, axis=0) > 0)
+            count_hor = np.count_nonzero(-np.diff(textlines_w_h, axis=1) > 0)
             count_ver = N - count_hor
         else:
             mean_y_diff = 0
@@ -588,7 +588,7 @@ class Eynollah:
                                             False)
                        for ind in textlines_args]
             results = np.array(results)
-            indexes_in = textlines_args[results == 1]
+            indexes_in = textlines_args[results >= 0]
             get_in = itemgetter(indexes_in)
             textlines_in_cont, textlines_in_conf = self.get_textlines_of_a_textregion_sorted(
                 get_in(textlines_cont), get_in(textlines_conf),
@@ -603,8 +603,11 @@ class Eynollah:
             except ValueError:
                 parent.skew = slope_deskew
             # plt.imshow(textline_mask_tot)
-            # for contour in textlines_in_cont:
-            #     plt.plot(*contour[:, 0].T, linewidth=3, color='red')
+            # for i, contour in enumerate(textlines_in_cont):
+            #     plt.plot(*contour[:, 0].T, linewidth=2, color='green')
+            #     plt.text(*contour[:, 0].mean(axis=0), str(i + 1))
+            # if not len(textlines_in_cont):
+            #     plt.plot(*parent.contour[:, 0].T, linewidth=2, color='red')
             # plt.show()
 
     def get_slopes_and_deskew_new_curved(
