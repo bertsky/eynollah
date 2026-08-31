@@ -1050,10 +1050,6 @@ class Eynollah:
                 image_page,
                 False, cols=num_col_classifier)
 
-            # the separators in full layout will not be written on layout
-            if not self.reading_order_machine_based:
-                text_regions_p[regions_fully == label_seps_fl_model] = label_seps_fl
-
             drops = regions_fully == label_drop_fl_model
             regions_fully[drops] = label_text
             # rs: why erode to text here, when fill_bb... will mask out text (only allowing img/drop/bg)?
