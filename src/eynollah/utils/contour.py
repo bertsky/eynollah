@@ -87,8 +87,9 @@ def return_parent_contours(contours, hierarchy):
 
 def return_contours_of_class(region_pre_p, label, min_area=0.0):
     mask = (region_pre_p == label).astype(np.uint8)
-
-    contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # filter_contours_area_of_image also allows non-children only,
+    # so instead of a tree we can retrieve only the external contours
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = filter_contours_area_of_image(mask, contours, hierarchy,
                                              max_area=1.0,
                                              min_area=min_area)
