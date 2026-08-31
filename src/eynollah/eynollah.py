@@ -581,6 +581,25 @@ class Eynollah:
         textlines_w_h = [cv2.boundingRect(polygon)[2:] for polygon in textlines_cont]
         textlines_args = np.arange(len(textlines_cont))
 
+        # search for unbalanced shapes (center not in contour itself)
+        for ind, cont in enumerate(textlines_cont):
+            if (not cv2.isContourConvex(cont) and
+                cv2.pointPolygonTest(cont,
+                                     (textlines_cx[ind],
+                                      textlines_cy[ind]),
+                                     False) < 0):
+                # find new representative point instead of center:
+                # fit all points to straight line to pick from
+                vx, vy, x, y = cv2.fitLine(cont, cv2.DIST_L2, 0, 0.01, 0.01)
+                path = np.arange(textlines_w_h[ind][0] // 2)
+                for dist in list(path) + list(-path):
+                    new_cx = textlines_cx[ind] + dist
+                    new_cy = int((new_cx - x) * vy / vx + y)
+                    if cv2.pointPolygonTest(cont, (new_cx, new_cy), False) >= 0:
+                        textlines_cx[ind] = new_cx
+                        textlines_cy[ind] = new_cy
+                        break
+
         for index, parent in enumerate(parents):
             results = [cv2.pointPolygonTest(parent.contour,
                                             (textlines_cx[ind],
