@@ -773,9 +773,9 @@ class Eynollah:
         #     mask_texts_only = cv2.morphologyEx(mask_texts_only, cv2.MORPH_OPEN, KERNEL, iterations=1)
         mask_texts_only = cv2.dilate(mask_texts_only, kernel=np.ones((2, 2), np.uint8), iterations=1)
 
-        texts_only_cont = return_contours_of_class(mask_texts_only, 1, min_area=1e-5)
+        texts_only_cont = return_contours_of_class(mask_texts_only, 1, min_area=1e-4)
         seps_only_cont = return_contours_of_class(mask_seps_only, 1, min_area=1e-5)
-        tabs_only_cont = return_contours_of_class(mask_tabs_only, 1, min_area=1e-5)
+        tabs_only_cont = return_contours_of_class(mask_tabs_only, 1, min_area=1e-4)
 
         text_regions_p = np.zeros_like(prediction_regions)
         text_regions_p = cv2.fillPoly(text_regions_p, pts=seps_only_cont, color=label_seps)
@@ -1712,7 +1712,7 @@ class Eynollah:
         marginals_conf = get_region_confidences(marginals_cont, regions_confidence)
         marginals = [Region(cont, conf=conf)
                      for cont, conf in zip(marginals_cont, marginals_conf)]
-        tables_cont = return_contours_of_class(text_regions_p, label_tabs, min_area_mar)
+        tables_cont = return_contours_of_class(text_regions_p, label_tabs, MIN_AREA_REGION)
         tables_conf = get_region_confidences(tables_cont, regions_confidence)
         tables = [Region(cont, conf=conf)
                   for cont, conf in zip(tables_cont, tables_conf)]
