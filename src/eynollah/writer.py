@@ -27,7 +27,13 @@ from ocrd_models.ocrd_page import (
 from .utils import Region, TextRegion
 from .utils.xml import create_page_xml, xml_reading_order
 from .utils.counter import EynollahIdCounter
-from .utils.contour import contour2polygon, make_valid
+from .utils.contour import (
+    contour2polygon,
+    make_valid,
+    ensure_polygon,
+    join_polygons,
+    bridge_polygons,
+)
 
 class EynollahXmlWriter:
 
@@ -63,7 +69,7 @@ class EynollahXmlWriter:
         if offset is not None:
             poly = affinity.translate(poly, *offset)
         poly = affinity.scale(poly, xfact=1 / self.scale_x, yfact=1 / self.scale_y, origin=(0, 0))
-        poly = make_valid(clip_by_rect(poly, 0, 0, self.image_width, self.image_height))
+        poly = make_valid(ensure_polygon(clip_by_rect(poly, 0, 0, self.image_width, self.image_height)))
         return points_from_polygon(poly.exterior.coords[:-1])
 
     def serialize_lines_in_region(
@@ -122,7 +128,7 @@ class EynollahXmlWriter:
         pcgts.Page.set_orientation(-page.skew)
         pcgts.Page.set_Border(BorderType(Coords=CoordsType(
             points=self.calculate_points(page.contour))))
-        x, y, w, h = cv2.boundingRect(page.contour)
+        x, y, _, _ = cv2.boundingRect(page.contour)
         offset = [x, y]
         counter = EynollahIdCounter()
         if len(order_of_texts):
