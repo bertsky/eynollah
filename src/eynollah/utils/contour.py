@@ -304,7 +304,7 @@ def estimate_skew_contours(contours):
 def contour2polygon(contour: Union[np.ndarray, Sequence[Sequence[Sequence[Number]]]], dilate=0):
     polygon = Polygon([point[0] for point in contour])
     if dilate:
-        polygon = polygon.buffer(dilate)
+        polygon = ensure_polygon(polygon.buffer(dilate))
     return ensure_polygon(make_valid(polygon))
 
 def polygon2contour(polygon: Polygon) -> np.ndarray:
