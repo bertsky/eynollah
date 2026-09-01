@@ -374,7 +374,8 @@ def join_polygons(polygons: Sequence[Polygon], scale=20) -> Polygon:
                         [poly.geoms
                          if poly.geom_type in ['MultiPolygon', 'GeometryCollection']
                          else [poly]
-                         for poly in polygons])]
+                         for poly in polygons])
+                if not poly.is_empty]
     npoly = len(polygons)
     if npoly == 1:
         return polygons[0]
