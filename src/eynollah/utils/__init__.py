@@ -724,25 +724,6 @@ def find_num_col_only_image(regions_without_separators, multiplier=3.8):
 
     return len(peaks_fin_true), peaks_fin_true
 
-def find_num_col_by_vertical_lines(regions_without_separators, multiplier=3.8):
-    regions_without_separators_0 = regions_without_separators.sum(axis=0)
-
-    ##plt.plot(regions_without_separators_0)
-    ##plt.show()
-    sigma_ = 35  # 70#35
-
-    z = gaussian_filter1d(regions_without_separators_0, sigma_)
-    peaks, _ = find_peaks(z, height=0)
-
-    # print(peaks,'peaksnew')
-    # fig, (ax1, ax2) = plt.subplots(2, sharex=True, suptitle='find_num_col_by_vertical_lines')
-    # ax1.imshow(regions_without_separators, aspect="auto")
-    # ax2.plot(z)
-    # ax2.scatter(peaks, z[peaks])
-    # ax2.set_title('find_peaks(regions_without_separators.sum(axis=0), height=0)')
-    # plt.show()
-    return peaks
-
 def fill_bb_of_drop_capitals(
         full_prediction, early_prediction,
         label_bg=0,
@@ -1192,7 +1173,7 @@ def find_number_of_columns_in_document(
         logger=None
 ) -> Tuple[int, List[int], np.ndarray, List[int], np.ndarray]:
     """
-    Extract vertical and horizontal separators, vertical splits and horizontal column boundaries on page.
+    Extract vertical and horizontal separators and vertical splits on page.
 
     Arguments:
       * regions_without_separators: mask of (non-separator) region labels
@@ -1203,8 +1184,6 @@ def find_number_of_columns_in_document(
       * logger
 
     Returns: a tuple of
-      * the actual number of columns found
-      * the x coordinates of the column boundaries
       * an array of the separators (bounding boxes and types)
       * the y coordinates of the page splits
     """
@@ -1369,36 +1348,8 @@ def find_number_of_columns_in_document(
 
     cy_splitters = np.sort(cy_splitters).astype(int)
     splitter_y_new = [0] + list(cy_splitters) + [height]
-    big_part = 22 * height // 100 # percent height
 
-    num_col_fin=0
-    peaks_neg_fin_fin=[]
-    num_big_parts = 0
-    for top, bot in pairwise(splitter_y_new):
-        if bot - top < big_part:
-            continue
-        num_big_parts += 1
-        try:
-            num_col, peaks_neg_fin = find_num_col(regions_without_separators[top: bot],
-                                                  num_col_classifier, tables,
-                                                  vertical_separators=1 * (vertical[top: bot] > 0),
-                                                  multiplier=7.0)
-            logger.debug("big part %d:%d has %d columns", top, bot, num_col + 1)
-            # print(peaks_neg_fin)
-        except:
-            num_col = 0
-            peaks_neg_fin = []
-        if num_col>num_col_fin:
-            num_col_fin=num_col
-            peaks_neg_fin_fin=peaks_neg_fin
-
-    if num_big_parts == 1 and len(peaks_neg_fin_fin) + 1 < num_col_classifier:
-        peaks_neg_fin=find_num_col_by_vertical_lines(vertical)
-        peaks_neg_fin=peaks_neg_fin[peaks_neg_fin>=500]
-        peaks_neg_fin=peaks_neg_fin[peaks_neg_fin<=(vertical.shape[1]-500)]
-        peaks_neg_fin_fin=peaks_neg_fin[:]
-
-    return num_col_fin, peaks_neg_fin_fin, matrix_of_seps_ch, splitter_y_new
+    return matrix_of_seps_ch, splitter_y_new
 
 def return_boxes_of_images_by_order_of_reading_new(
         splitter_y_new,

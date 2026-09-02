@@ -1088,7 +1088,7 @@ class Eynollah:
     ):
         separator_mask = text_regions_p == label_seps_fl
 
-        _, _, matrix_of_seps_ch, splitter_y_new = find_number_of_columns_in_document(
+        matrix_of_seps_ch, splitter_y_new = find_number_of_columns_in_document(
             regions_without_separators, separator_mask, num_col_classifier, self.tables,
             contours_h=contours_h)
 
