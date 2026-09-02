@@ -1583,13 +1583,29 @@ def return_boxes_of_images_by_order_of_reading_new(
                 continue
             if np.count_nonzero(col_ccounts[:, label] > 0.1 * label_count) < 2:
                 continue
+            # ignore tiny passages with less 10% of height
+            # (i.e. label is already almost separated by columns)
+            for start in range(label_start, label_end):
+                if text_mask[label_top: label_bot,
+                             peaks_neg_tot[start + 1]].sum() < 0.1 * (label_bot - label_top):
+                    label_start = start + 1
+                else:
+                    break
+            for end in reversed(range(label_start, label_end)):
+                if text_mask[label_top: label_bot,
+                             peaks_neg_tot[end]].sum() < 0.1 * (label_bot - label_top):
+                    label_end = end
+                else:
+                    break
+            if label_end - label_start < 2:
+                continue
             # store as dict for multi-column boxes:
             for start in range(label_start, label_end):
                 labelcolmap.setdefault(start, list()).append(
                     (label_end, label_top, label_bot, sum(col_ccounts[start: label_end, label])))
             # make additional separators:
-            x_min_hor_some = np.append(x_min_hor_some, [label_left] * 2)
-            x_max_hor_some = np.append(x_max_hor_some, [label_right] * 2)
+            x_min_hor_some = np.append(x_min_hor_some, [label_left + 25] * 2)
+            x_max_hor_some = np.append(x_max_hor_some, [label_right - 25] * 2)
             y_min_hor_some = np.append(y_min_hor_some, [label_top - 2, label_bot])
             y_max_hor_some = np.append(y_max_hor_some, [label_top, label_bot + 2])
             cy_hor_some = np.append(cy_hor_some, [label_top - 1, label_bot + 1])
@@ -1652,11 +1668,7 @@ def return_boxes_of_images_by_order_of_reading_new(
                             # or just a small cut of the respective region
                             # (i.e. box should cover at least 10% of the label).
                             and ((min(y_bot, l_bot) - max(y_top, l_top)) *
-                                 (peaks_neg_tot[last] - peaks_neg_tot[start])) > 0.1 * l_count
-                            # But do allow cutting tiny passages with less 10% of height
-                            # (i.e. label is already almost separated by columns)
-                            and text_mask[y_top: y_bot,
-                                          peaks_neg_tot[start + 1]].sum() > 0.1 * (y_bot - y_top)),
+                                 (peaks_neg_tot[last] - peaks_neg_tot[start])) > 0.1 * l_count),
                            # Otherwise advance only 1 column.
                            default=start + 1)
             def add_sep(cur):
