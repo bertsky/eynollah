@@ -872,7 +872,7 @@ def return_deskew_slop(img,
         angle, var = best_angle(angles)
 
     # precision stage:
-    angles = np.linspace(angle - 2.5, angle + 2.5, n_tot_angles // 2)
+    angles = np.linspace(angle - 1.5, angle + 1.5, n_tot_angles // 2)
     angle, _ = best_angle(angles)
 
     return angle
