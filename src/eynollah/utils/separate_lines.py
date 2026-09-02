@@ -21,7 +21,7 @@ from .contour import (
     find_center_of_contours,
 )
 from . import (
-    find_num_col_deskew,
+    get_projection_var,
     box2rect,
 )
 
@@ -748,7 +748,9 @@ def separate_lines_new2(img_crop, _, num_col, slope_region, logger=None, plotter
         img_xline = img_crop[box]
 
         if img_xline.any():
-            slope_xline = return_deskew_slop(img_xline, 2, logger=logger, plotter=plotter)
+            slope_xline = return_deskew_slop(img_xline, 2,
+                                             logger=logger,
+                                             plotter=plotter)
         else:
             continue
 
@@ -795,13 +797,12 @@ def separate_lines_new2(img_crop, _, num_col, slope_region, logger=None, plotter
 
     return img_crop_revised
 
-def do_image_rotation(angle, img=None, sigma_des=1.0, logger=None):
+def do_image_rotation(angle, img=None, axis=1, sigma_des=1.0, logger=None):
     if logger is None:
         logger = getLogger(__package__)
     img_rot = rotate_image(img, angle)
-    img_rot[img_rot!=0] = 1
     try:
-        var = find_num_col_deskew(img_rot, sigma_des, 20.3)
+        var = get_projection_var(img_rot, sigma_des, axis=axis)
     except:
         logger.exception("cannot determine variance for angle %.2f°", angle)
         var = 0
@@ -811,11 +812,30 @@ def return_deskew_slop(img,
                        sigma_des,
                        n_tot_angles=100,
                        main_page=False,
+                       axis=1,
                        logger=None,
                        plotter=None,
                        name=None):
+    """
+    estimate skew angle (small rotation) for page
+
+    Args:
+        img: text mask for projection method
+        sigma_des: smoothing parameter
+    Keyword Args:
+        n_tot_angles: number of angles to try
+              (more means slower but more precision)
+        main_page: whether img is the entire page (or a crop)
+        axis: dimension to minimise variance over
+              (1 means maximise vertical gaps / lines,
+               0 means maximise horizontal gaps / columns)
+
+    Returns:
+    the angle (in degrees) the image needs to be rotated
+    to correct the inherent skew.
+    """
     if main_page and plotter:
-        plotter.save_plot_of_textline_density(img, name)
+        plotter.save_plot_of_textline_density(img, name=name, axis=axis)
 
     height, width = img.shape[:2]
     max_shape = int(np.max(img.shape) * 1.1)
@@ -829,6 +849,7 @@ def return_deskew_slop(img,
 
     def best_angle(angles):
         return get_smallest_skew(img_resized, sigma_des, angles,
+                                 axis=axis,
                                  logger=logger,
                                  name=name,
                                  plotter=plotter)
@@ -856,10 +877,18 @@ def return_deskew_slop(img,
 
     return angle
 
-def get_smallest_skew(img, sigma_des, angles, logger=None, plotter=None, name=None):
+def get_smallest_skew(img, sigma_des, angles,
+                      axis=1,
+                      logger=None,
+                      plotter=None,
+                      name=None
+):
     if logger is None:
         logger = getLogger(__package__)
-    results = [do_image_rotation(angle, img=img, sigma_des=sigma_des, logger=logger)
+    results = [do_image_rotation(angle, img=img,
+                                 axis=axis,
+                                 sigma_des=sigma_des,
+                                 logger=logger)
                for angle in angles]
     if plotter:
         plotter.save_plot_of_rotation_angle(angles, results, name)

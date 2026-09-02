@@ -995,7 +995,7 @@ class Eynollah:
         #textline_mask_tot_ea = textline_mask_tot_ea.astype(np.int16)
         return textline_mask_tot_ea, textline_conf
 
-    def run_deskew(self, textline_mask_tot_ea):
+    def run_deskew(self, textline_mask_tot_ea, axis=1):
         if not np.any(textline_mask_tot_ea):
             self.logger.info("slope_deskew: empty page")
             return 0
@@ -1003,7 +1003,9 @@ class Eynollah:
         #print(textline_mask_tot_ea.shape, 'textline_mask_tot_ea deskew')
         textline_mask_tot_ea = cv2.erode(textline_mask_tot_ea, KERNEL, iterations=2)
         slope_deskew = return_deskew_slop(textline_mask_tot_ea, 2,
-                                          n_tot_angles=30, main_page=True,
+                                          n_tot_angles=30,
+                                          main_page=True,
+                                          axis=axis,
                                           logger=self.logger, plotter=self.plotter)
         self.logger.info("slope_deskew: %.2f°", slope_deskew)
         return slope_deskew
@@ -1623,9 +1625,11 @@ class Eynollah:
             img_h_new = img_w_new * textline_mask_tot_ea.shape[0] // textline_mask_tot_ea.shape[1]
 
             textline_mask_tot_ea_deskew = resize_image(textline_mask_tot_ea,img_h_new, img_w_new )
-            slope_deskew = self.run_deskew(textline_mask_tot_ea_deskew)
+            # variation of projection profile: from gaps between text lines
+            slope_deskew = self.run_deskew(textline_mask_tot_ea_deskew, axis=1)
         else:
-            slope_deskew = self.run_deskew(textline_mask_tot_ea)
+            # variation of projection profile: from column gaps
+            slope_deskew = self.run_deskew(textline_mask_tot_ea, axis=0)
         # if ratio of text regions to page area is smaller that 30%,
         # then ignore skew angle above 45°
         if (abs(slope_deskew) > 45 and

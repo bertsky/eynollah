@@ -275,9 +275,9 @@ def boosting_headers_by_longshot_region_segmentation(textregion_pre_p, textregio
                      (textregion_pre_p != 2)] = 1
     return textregion_pre_p
 
-def find_num_col_deskew(regions_without_separators, sigma_, multiplier=3.8):
-    regions_without_separators_0 = regions_without_separators.sum(axis=1)
-    z = gaussian_filter1d(regions_without_separators_0, sigma_)
+def get_projection_var(regions_without_separators, sigma, axis=1):
+    z = regions_without_separators.sum(axis=axis)
+    z = gaussian_filter1d(z, sigma)
     return np.std(z)
 
 def find_num_col(

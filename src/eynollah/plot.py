@@ -139,17 +139,18 @@ class EynollahPlotter:
         cv2.imwrite(os.path.join(self.dir_out,
                                  (name or "page") + "_enhanced.png"), img_res)
         
-    def save_plot_of_textline_density(self, img_patch_org, name=None):
+    def save_plot_of_textline_density(self, img_patch_org, axis=1, name=None):
         if self.dir_of_all is not None:
             plt.figure(figsize=(80,40))
             plt.rcParams['font.size']='50'
             plt.subplot(1,2,1)
             plt.imshow(img_patch_org)
             plt.subplot(1,2,2)
-            plt.plot(gaussian_filter1d(img_patch_org.sum(axis=1), 3),np.array(range(len(gaussian_filter1d(img_patch_org.sum(axis=1), 3)))),linewidth=8)
+            z = gaussian_filter1d(img_patch_org.sum(axis=axis), 3)
+            plt.plot(z, np.arange(len(z)), linewidth=8)
             plt.xlabel('Density of textline prediction in direction of X axis',fontsize=60)
             plt.ylabel('Height',fontsize=60)
-            plt.yticks([0,len(gaussian_filter1d(img_patch_org.sum(axis=1), 3))])
+            plt.yticks([0, len(z)])
             plt.gca().invert_yaxis()
             plt.savefig(os.path.join(self.dir_of_all,
                                      (name or "page") + '_density_of_textline.png'))
