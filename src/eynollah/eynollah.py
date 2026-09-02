@@ -942,7 +942,9 @@ class Eynollah:
 
     def run_columns(
             self, text_regions_p_1,
-            num_col_classifier, num_column_is_classified,
+            slope_deskew,
+            num_col_classifier,
+            num_column_is_classified,
             erosion_hurts,
             label_imgs=2,
             label_seps=3,
@@ -953,7 +955,8 @@ class Eynollah:
                                       (text_regions_p_1 != 0)).astype(np.uint8)
         if not erosion_hurts:
             regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=6)
-
+        # deskew for clearer signal
+        regions_without_separators = rotate_image(regions_without_separators, slope_deskew)
         try:
             num_col, _ = find_num_col(regions_without_separators, num_col_classifier, self.tables, multiplier=6.0)
             num_col = num_col + 1
@@ -1653,7 +1656,9 @@ class Eynollah:
 
         num_col, num_col_classifier = \
             self.run_columns(text_regions_p,
-                             num_col_classifier, num_column_is_classified,
+                             slope_deskew,
+                             num_col_classifier,
+                             num_column_is_classified,
                              erosion_hurts)
         t4 = time.time()
         textline_mask_tot_ea_org = np.copy(textline_mask_tot_ea)
