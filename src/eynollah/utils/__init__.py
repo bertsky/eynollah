@@ -1346,6 +1346,17 @@ def find_number_of_columns_in_document(
         cy_splitters = np.append(cy_splitters, y_min_splitters_head)
         cy_splitters = np.append(cy_splitters, y_max_splitters_head)
 
+    regions_y = gaussian_filter1d(regions_without_separators.sum(axis=1), 10)
+    peaks_y, _ = find_peaks(regions_y.max() - regions_y, distance=20)
+    for peak_y in peaks_y:
+        if regions_without_separators[peak_y].any():
+            continue
+        if not regions_without_separators[:peak_y].any():
+            continue
+        if not regions_without_separators[peak_y:].any():
+            continue
+        cy_splitters = np.append(cy_splitters, peak_y)
+
     cy_splitters = np.sort(cy_splitters).astype(int)
     splitter_y_new = [0] + list(cy_splitters) + [height]
 
