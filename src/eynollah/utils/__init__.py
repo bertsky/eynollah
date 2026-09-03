@@ -1532,7 +1532,7 @@ def return_boxes_of_images_by_order_of_reading_new(
         #num_col, peaks_neg_fin = find_num_col(
         #    text_mask[top:bot,:],
         #    multiplier=7.0)
-        peaks_neg_tot = np.array([0] + peaks_neg_fin + [width_tot])
+        peaks_neg_tot = np.array([0] + peaks_neg_fin + [width_tot - 1])
         #print(peaks_neg_tot,'peaks_neg_tot')
         peaks_neg_tot_tables.append(peaks_neg_tot)
 
@@ -1580,14 +1580,19 @@ def return_boxes_of_images_by_order_of_reading_new(
             if label_count < 0.5 * ccounts_median:
                 continue
             label_left, label_top, label_width, label_height, label_area = cstats[label]
+            label_right = label_left + label_width
+            label_bot = label_top + label_height
+            # enforce boundaries
+            label_left = max(0, label_left)
+            label_right = min(width_tot - 1, label_right)
+            label_top = max(0, label_top)
+            label_bot = min(height_tot - 1, label_bot)
             # if label_count < 0.9 * label_area:
             #     # mostly not in this part of the page
             #     continue
             if label_count < 0.01 * (top - bot) * width_tot:
                 continue
             #assert np.sum(col_ccounts[:, label]) == label_count
-            label_right = label_left + label_width
-            label_bot = label_top + label_height
             label_start = np.flatnonzero(peaks_neg_tot > label_left)[0] - 1
             label_end = np.flatnonzero(peaks_neg_tot >= label_right)[0]
             if label_end - label_start < 2:
