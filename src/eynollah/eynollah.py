@@ -590,7 +590,7 @@ class Eynollah:
                                      False) < 0):
                 # find new representative point instead of center:
                 # fit all points to straight line to pick from
-                vx, vy, x, y = cv2.fitLine(cont, cv2.DIST_L2, 0, 0.01, 0.01)
+                vx, vy, x, y = cv2.fitLine(cont, cv2.DIST_L2, 0, 0.01, 0.01)[:, 0]
                 path = np.arange(textlines_w_h[ind][0] // 2)
                 for dist in list(path) + list(-path):
                     new_cx = textlines_cx[ind] + dist

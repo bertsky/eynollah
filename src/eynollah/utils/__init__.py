@@ -237,8 +237,8 @@ def find_features_of_lines(contours):
 
     angles = np.empty(len(contours))
     for i, cont in enumerate(contours):
-        vx, vy, x, y = cv2.fitLine(cont, cv2.DIST_L2, 0, 0.01, 0.01)
-        angles[i] = np.arctan2(vy, vx) / np.pi * 180 # [-180,180]
+        vx, vy, _, _ = cv2.fitLine(cont, cv2.DIST_L2, 0, 0.01, 0.01)[:, 0]
+        angles[i] = np.degrees(np.arctan2(vy, vx)) # [-180,180]
 
     slopes = np.empty(len(contours), dtype=np.uint8)
     slopes[:] = 2
