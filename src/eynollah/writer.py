@@ -1,5 +1,6 @@
-# pylint: disable=too-many-locals,wrong-import-position,too-many-lines,too-many-statements,chained-comparison,fixme,broad-except,c-extension-no-member
+# pylint: disable=chained-comparison,c-extension-no-member
 # pylint: disable=import-error
+from __future__ import annotations
 from pathlib import Path
 import os.path
 import logging
@@ -64,8 +65,9 @@ class EynollahXmlWriter:
             self, contour: np.ndarray,
             offset: Optional[List[int]] = None,
             dilate: int = 0,
+            open_holes: bool = False,
     ) -> str:
-        poly = contour2polygon(contour, dilate=dilate)
+        poly = contour2polygon(contour, dilate=dilate, holes=open_holes)
         if offset is not None:
             poly = affinity.translate(poly, *offset)
         poly = affinity.scale(poly, xfact=1 / self.scale_x, yfact=1 / self.scale_y, origin=(0, 0))
@@ -104,6 +106,7 @@ class EynollahXmlWriter:
         page: Region,
         img_bin: Optional[np.ndarray] = None,
         num_col: int = 1,
+        # ruff: disable[B006] (because this is safe here)
         order_of_texts: List[int] = [],
         textregions: List[TextRegion] = [],
         textregions_h: List[TextRegion] = [],
@@ -113,6 +116,7 @@ class EynollahXmlWriter:
         marginals_left: List[TextRegion] = [],
         marginals_right: List[TextRegion] = [],
         seplines: List[Region] = [],
+        # ruff: enable[B006]
     ):
         self.logger.debug('enter build_pagexml')
 
@@ -201,7 +205,8 @@ class EynollahXmlWriter:
             pcgts.Page.add_SeparatorRegion(
                 SeparatorRegionType(
                     id=counter.next_region_id,
-                    Coords=CoordsType(points=self.calculate_points(region.contour, offset, 2),
+                    Coords=CoordsType(points=self.calculate_points(region.contour, offset, 2,
+                                                                   open_holes=True),
                                       conf=region.conf)))
 
         for region in tables:

@@ -75,10 +75,16 @@ ignore = [
 "F401",
 # disable import order
 "E402",
+# Import block is un-sorted or un-formatted
+"I001",
 # disable unused variables
 "F841",
 # disable bare except
 "E722",
+# Use format specifiers instead of percent format
+"UP031",
+# `datetime.datetime.now()` called without a `tz` argument
+"DTZ005",
 ]
 
 [tool.ruff.format]

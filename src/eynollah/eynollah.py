@@ -774,7 +774,7 @@ class Eynollah:
         mask_texts_only = cv2.dilate(mask_texts_only, kernel=np.ones((2, 2), np.uint8), iterations=1)
 
         texts_only_cont = return_contours_of_class(mask_texts_only, 1, min_area=1e-4)
-        seps_only_cont = return_contours_of_class(mask_seps_only, 1, min_area=1e-5)
+        seps_only_cont = return_contours_of_class(mask_seps_only, 1, min_area=1e-5, holes=True)
         tabs_only_cont = return_contours_of_class(mask_tabs_only, 1, min_area=1e-4)
 
         text_regions_p = np.zeros_like(prediction_regions)
@@ -782,10 +782,11 @@ class Eynollah:
         text_regions_p[mask_images_only] = label_imgs
         text_regions_p = cv2.fillPoly(text_regions_p, pts=texts_only_cont, color=label_text)
         text_regions_p = cv2.fillPoly(text_regions_p, pts=tabs_only_cont, color=label_tabs)
-        # plt.subplot(1, 2, 1, title="w/o art class")
-        # plt.imshow(text_regions_p)
         text_regions_p[mask_art_only] = 0 # ensure instances are still separated
-        # plt.subplot(1, 2, 2, title="w/ art class")
+
+        # plt.subplot(1, 2, 1, title="early regions")
+        # plt.imshow(prediction_regions)
+        # plt.subplot(1, 2, 2, title="(reconstructed)")
         # plt.imshow(text_regions_p)
         # plt.show()
 

@@ -85,8 +85,59 @@ def return_parent_contours(contours, hierarchy):
                        if hierarchy[0][i][3] == -1]
     return contours_parent
 
-def return_contours_of_class(region_pre_p, label, min_area=0.0):
+def return_contours_of_class(region_pre_p, label, min_area=0.0, holes=False):
     mask = (region_pre_p == label).astype(np.uint8)
+    if holes:
+        min_area *= region_pre_p.size
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        if not len(contours):
+            return []
+        areas = [cv2.contourArea(contour) for contour in contours]
+        parents = []
+        for contour, area, relations in zip(contours, areas, hierarchy[0]):
+            if len(contour) < 3:  # A polygon cannot have less than 3 points
+                continue
+            if relations[3] == -1: # parent
+                if area < min_area:
+                    continue
+                children = []
+                child = relations[2] # next_child
+                while child >= 0:
+                    relations = hierarchy[0][child]
+                    area -= areas[child]
+                    if len(contours[child]) >= 4 and areas[child] >= min_area:
+                        children.append(contours[child])
+                    child = relations[0] # next
+                if area < min_area:
+                    continue
+                parents.append((contour, children))
+        # open holes
+        contours = []
+        for contour, children in parents:
+            if len(children):
+                poly = contour2polygon(contour)
+                interiors = [contour2polygon(interior) for interior in children]
+                # from shapely.plotting import plot_polygon
+                # from matplotlib import pyplot as plt
+                # plt.figure("child contours")
+                # plt.subplot(2, 2, 1, title="original")
+                # plot_polygon(Polygon(shell=poly, holes=interiors))
+                new_interior = join_polygons(interiors)
+                # plt.subplot(2, 2, 2, title="new_interior")
+                # plot_polygon(poly)
+                # plot_polygon(new_interior, color='r')
+                bridge = bridge_polygons(poly.exterior, orient(new_interior, -1))
+                # plt.subplot(2, 2, 3, title="bridge")
+                # plot_polygon(poly)
+                # plot_polygon(bridge)
+                poly = poly.difference(bridge).difference(new_interior)
+                # plt.subplot(2, 2, 4, title="new")
+                # plot_polygon(poly)
+                # plt.show()
+                contour = polygon2contour(ensure_polygon(poly))
+            contours.append(contour)
+        return contours
+
     # filter_contours_area_of_image also allows non-children only,
     # so instead of a tree we can retrieve only the external contours
     contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -301,10 +352,33 @@ def estimate_skew_contours(contours):
     # print("mean angle", angle)
     return angle
 
-def contour2polygon(contour: Union[np.ndarray, Sequence[Sequence[Sequence[Number]]]], dilate=0):
+def contour2polygon(
+        contour: Union[np.ndarray, Sequence[Sequence[Sequence[Number]]]],
+        dilate: int = 0,
+        holes: bool = False,
+):
     polygon = Polygon([point[0] for point in contour])
     if dilate:
-        polygon = ensure_polygon(polygon.buffer(dilate))
+        polygon = polygon.buffer(dilate)
+        if holes and len(polygon.interiors):
+            # from shapely.plotting import plot_polygon
+            # from matplotlib import pyplot as plt
+            # plt.figure("dilation interiors")
+            # plt.subplot(2, 2, 1, title="original")
+            # plot_polygon(polygon)
+            new_interior = join_polygons(Polygon(poly) for poly in polygon.interiors)
+            # plt.subplot(2, 2, 2, title="new_interior")
+            # plot_polygon(polygon)
+            # plot_polygon(new_interior, color='r')
+            bridge = bridge_polygons(polygon.exterior, new_interior)
+            # plt.subplot(2, 2, 3, title="bridge")
+            # plot_polygon(polygon)
+            # plot_polygon(bridge, color='r')
+            polygon = polygon.difference(bridge).difference(new_interior)
+            # plt.subplot(2, 2, 4, title="new")
+            # plot_polygon(polygon)
+            # plt.show()
+        polygon = ensure_polygon(polygon)
     return ensure_polygon(make_valid(polygon))
 
 def polygon2contour(polygon: Polygon) -> np.ndarray:
