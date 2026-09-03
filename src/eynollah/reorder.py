@@ -6,10 +6,10 @@ Machine learning based reading order detection
 # pyright: reportUnboundVariable=false
 # pyright: reportArgumentType=false
 
+from __future__ import annotations
 import logging 
 import os
 import time
-from typing import Optional
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -36,7 +36,7 @@ class Reorder(Eynollah):
             self,
             *,
             model_zoo: EynollahModelZoo,
-            logger : Optional[logging.Logger] = None,
+            logger : logging.Logger | None = None,
             device: str = '',
             model_based: bool = True,
             # also expose these on CLI?
@@ -156,10 +156,7 @@ class Reorder(Eynollah):
             elif nn.tag.endswith('}TableRegion'):
                 tabs_cont.append(cont)
 
-            elif nn.tag.endswith('}GraphicRegion'):
-                imgs_cont.append(cont)
-
-            elif nn.tag.endswith('}ImageRegion'):
+            elif nn.tag.endswith('}GraphicRegion') or nn.tag.endswith('}ImageRegion'):
                 imgs_cont.append(cont)
 
             elif nn.tag.endswith('}SeparatorRegion'):
@@ -185,10 +182,10 @@ class Reorder(Eynollah):
 
     def run(self,
             overwrite: bool = False,
-            xml_filename: Optional[str] = None,
-            dir_in: Optional[str] = None,
-            dir_imgs: Optional[str] = None,
-            dir_out: Optional[str] = None,
+            xml_filename: str | None = None,
+            dir_in: str | None = None,
+            dir_imgs: str | None = None,
+            dir_out: str | None = None,
     ):
         """
         Get image and scales, then extract the page of scanned image
@@ -205,8 +202,8 @@ class Reorder(Eynollah):
         else:
             raise ValueError("run requires either a single image filename or a directory")
 
-        for xml_filename in ls_xmls:
-            self.run_single(xml_filename,
+        for filename in ls_xmls:
+            self.run_single(filename,
                             dir_out=dir_out,
                             dir_imgs=dir_imgs,
                             overwrite=overwrite)
@@ -216,8 +213,8 @@ class Reorder(Eynollah):
 
     def run_single(self,
                    xml_filename: str,
-                   dir_imgs: Optional[str] = None,
-                   dir_out: Optional[str] = None,
+                   dir_imgs: str | None = None,
+                   dir_out: str | None = None,
                    overwrite: bool = False,
                    label_imgs=5,
                    label_seps=6,
@@ -258,6 +255,7 @@ class Reorder(Eynollah):
                 xml_basename = Path(xml_filename).with_suffix('')
                 def try_suffixes(basename, suffixes):
                     for suf in suffixes:
+                        # ruff: ignore[SIM114]
                         if (filename := basename.with_suffix(suf)).exists():
                             yield filename
                         elif dir_imgs and (filename := (dir_imgs / basename).with_suffix(suf)).exists():

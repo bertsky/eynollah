@@ -1,10 +1,10 @@
+from __future__ import annotations
 import os
 import json
 import logging
 from copy import deepcopy
 from pathlib import Path
 from fnmatch import fnmatchcase
-from typing import Dict, List, Optional, Tuple, Type, Union
 
 from tabulate import tabulate
 
@@ -39,7 +39,7 @@ class EynollahModelZoo:
     def __init__(
         self,
         basedir: str,
-        model_overrides: Optional[List[Tuple[str, str, str]]] = None,
+        model_overrides: list[tuple[str, str, str]] | None = None,
     ) -> None:
         self.model_basedir = Path(basedir).resolve()
         self.logger = logging.getLogger('eynollah.model_zoo')
@@ -49,7 +49,7 @@ class EynollahModelZoo:
         self._overrides = []
         if model_overrides:
             self.override_models(*model_overrides)
-        self._loaded: Dict[str, Predictor] = {}
+        self._loaded: dict[str, Predictor] = {}
 
     @property
     def model_overrides(self):
@@ -57,7 +57,7 @@ class EynollahModelZoo:
 
     def override_models(
         self,
-        *model_overrides: Tuple[str, str, str],
+        *model_overrides: tuple[str, str, str],
     ):
         """
         Override the default model versions
@@ -95,9 +95,9 @@ class EynollahModelZoo:
 
     def load_models(
         self,
-        *all_load_args: Union[str, Tuple[str], Tuple[str, str], Tuple[str, str, str]],
+        *all_load_args: str | tuple[str] | tuple[str, str] | tuple[str, str, str],
         device: str = '',
-    ) -> Dict:
+    ) -> dict:
         """
         Load all models by calling load_model and return a dictionary mapping model_category to loaded model
         """
@@ -135,7 +135,7 @@ class EynollahModelZoo:
             self,
             model_category: str,
             model_variant: str = '',
-            model_path_override: Optional[str] = None,
+            model_path_override: str | None = None,
             # patched: bool = False,
             # resized: bool = False,
             device: str = '',
@@ -498,7 +498,7 @@ class EynollahModelZoo:
         """
         Ensure that a loaded models is not referenced by ``self._loaded`` anymore
         """
-        if hasattr(self, '_loaded') and getattr(self, '_loaded'):
+        if hasattr(self, '_loaded') and self._loaded:
             for needle in list(self._loaded.keys()):
                 if isinstance(self._loaded[needle], Predictor):
                     self._loaded[needle].shutdown()

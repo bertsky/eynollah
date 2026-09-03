@@ -7,10 +7,10 @@ Tool to load model and binarize a given image.
 # pyright: reportArgumentType=false
 # pyright: reportPossiblyUnboundVariable=false
 
+from __future__ import annotations
 import os
 import logging
 from pathlib import Path 
-from typing import Optional
 
 import numpy as np
 import cv2
@@ -27,7 +27,7 @@ class SbbBinarizer(Eynollah):
             self,
             *,
             model_zoo: EynollahModelZoo,
-            logger: Optional[logging.Logger] = None,
+            logger: logging.Logger | None = None,
             device: str = '',
     ):
         self.logger = logger if logger else logging.getLogger('eynollah.binarization')

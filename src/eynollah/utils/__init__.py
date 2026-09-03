@@ -1,4 +1,5 @@
-from typing import Iterable, List, Tuple
+from __future__ import annotations
+from collections.abc import Iterable
 from logging import getLogger
 import time
 import math
@@ -7,9 +8,9 @@ from itertools import islice, compress
 
 try:
     import matplotlib.pyplot as plt
-    import matplotlib.patches as patches
+    import matplotlib.patches as mpatches
 except ImportError:
-    plt = None
+    plt = mpatches = None
 import numpy as np
 from shapely import geometry, prepared, ops
 import cv2
@@ -47,7 +48,7 @@ def itemgetter(seq):
     # (which is ambiguous about its return type:
     #  single-item if 1 argument, tuple otherwise)
     def fun(obj):
-        return list(obj[idx] for idx in seq)
+        return [obj[idx] for idx in seq]
     return fun
 
 @dataclass
@@ -66,7 +67,7 @@ class Region:
 
 @dataclass
 class TextRegion(Region):
-    lines: List[Region] = field(default_factory=list)
+    lines: list[Region] = field(default_factory=list)
 
 def return_multicol_separators_x_start_end(
         regions_without_separators, peak_points, top, bot,
@@ -158,12 +159,12 @@ def return_multicol_separators_x_start_end(
                                                  peak_points[min(x_start[i], x_start[j])]:
                                                  peak_points[max(x_end[i], x_end[j])]]):
             args_emptysep.add(i)
-            if x_start[j] > x_start[i]:
+            if x_start[j] > x_start[i]: # noqa: PLR1730
                 # print(j, "now starts at", x_start[i])
                 x_start[j] = x_start[i]
-            if x_end[j] < x_end[i]:
-                x_end[j] = x_end[i]
+            if x_end[j] < x_end[i]: # noqa: PLR1730
                 # print(j, "now ends at", x_end[i])
+                x_end[j] = x_end[i]
             # print(j, i, "%d:%d" % (y_mid[j], y_mid[i]), "%d:%d" % (x_start[i], x_end[i]), "empty prev sep")
             continue
         # find nearest neighbours below with nothing in between
@@ -195,11 +196,11 @@ def return_multicol_separators_x_start_end(
             y_mid,
             y_max)
 
-def box2rect(box: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
+def box2rect(box: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
     return (box[1], box[1] + box[3],
             box[0], box[0] + box[2])
 
-def box2slice(box: Tuple[int, int, int, int]) -> Tuple[slice, slice]:
+def box2slice(box: tuple[int, int, int, int]) -> tuple[slice, slice]:
     return (slice(box[1], box[1] + box[3]),
             slice(box[0], box[0] + box[2]))
 
@@ -776,13 +777,13 @@ def fill_bb_of_drop_capitals(
 def split_textregion_main_vs_head(
         regions_model_1: np.ndarray,
         regions_model_full: np.ndarray,
-        textregions: List[Region],
-        textregions_d: List[Region],
+        textregions: list[Region],
+        textregions_d: list[Region],
         label_text=1,
         label_head_full=2,
         label_head_final=2,
         label_main_final=1,
-) -> Tuple[np.ndarray, List[Region], List[Region], List[Region], List[Region]]:
+) -> tuple[np.ndarray, list[Region], list[Region], list[Region], list[Region]]:
 
     ### to make it faster
     h_o = regions_model_1.shape[0]
@@ -836,7 +837,7 @@ def split_textregion_main_vs_head(
     )
 
 def small_textlines_to_parent_adherence2(
-        textregions: List[TextRegion],
+        textregions: list[TextRegion],
         area_factor: float,
         num_col: int,
 ) -> None:
@@ -953,7 +954,7 @@ def order_of_regions(textline_mask, contours_main, contours_head, contours_drop,
     peaks_neg_new = np.array([0] +
                              # peaks can be beyond box due to padding and smoothing
                              [peak for peak in peaks_neg
-                              if 0 < peak and peak < textline_mask.shape[0]] +
+                              if 0 < peak < textline_mask.shape[0]] +
                              [textline_mask.shape[0]])
     # offset from bbox of mask
     peaks_neg_new += y_ref
@@ -998,7 +999,7 @@ def order_of_regions(textline_mask, contours_main, contours_head, contours_drop,
         # if indexes_in.size:
         #     img = textline_mask.copy()
         #     plt.imshow(img)
-        #     plt.gca().add_patch(patches.Rectangle((0, top-y_ref), img.shape[1], bot-top, alpha=0.5, color='gray'))
+        #     plt.gca().add_patch(mpatches.Rectangle((0, top-y_ref), img.shape[1], bot-top, alpha=0.5, color='gray'))
         #     xrange = np.arange(0, img.shape[1], 50)
         #     yrange = np.arange(0, img.shape[0], 50)
         #     plt.gca().set_xticks(xrange, xrange + x_ref)
@@ -1008,7 +1009,7 @@ def order_of_regions(textline_mask, contours_main, contours_head, contours_drop,
         #         col = {1: 'red', 2: 'blue', 3: 'green'}[type_]
         #         plt.scatter(cx - x_ref, cy - y_ref, 20, c=col, marker='o')
         #         plt.text(cx - x_ref, cy - y_ref, str(idx), c=col)
-        #         plt.gca().add_patch(patches.Polygon(cnt[:, 0] - [[x_ref, y_ref]], closed=False, fill=False, color=col))
+        #         plt.gca().add_patch(mpatches.Polygon(cnt[:, 0] - [[x_ref, y_ref]], closed=False, fill=False, color=col))
         #     plt.title("box contours centered in %d:%d (red=main / blue=heading / green=drop-capital)" % (top, bot))
         #     plt.show()
 
@@ -1031,7 +1032,7 @@ def combine_hor_lines_and_delete_cross_points_and_get_lines_features_back_new(
         img_p_in_ver: np.ndarray,
         img_p_in_hor: np.ndarray,
         num_col_classifier: int,
-) -> Tuple[np.ndarray, List[float]]:
+) -> tuple[np.ndarray, list[float]]:
     """
     Given a horizontal and vertical separator mask, combine horizontal separators
     (where possible) and make sure they do not cross each other.
@@ -1169,9 +1170,9 @@ def find_number_of_columns_in_document(
         separator_mask: np.ndarray,
         num_col_classifier: int,
         tables: bool,
-        contours_h: List[np.ndarray] = [],
+        contours_h: list[np.ndarray] = [], # ruff: ignore[B006] (not modified)
         logger=None
-) -> Tuple[int, List[int], np.ndarray, List[int], np.ndarray]:
+) -> tuple[int, list[int], np.ndarray, list[int], np.ndarray]:
     """
     Extract vertical and horizontal separators and vertical splits on page.
 
@@ -1405,8 +1406,8 @@ def return_boxes_of_images_by_order_of_reading_new(
     # def dbg_imshow(box, title):
     #     xmin, xmax, ymin, ymax = box
     #     plt.imshow(1 * text_mask + 3 * sep_mask) #, extent=[0, width_tot, bot, top])
-    #     plt.gca().add_patch(patches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
-    #                                           fill=False, linewidth=1, edgecolor='r'))
+    #     plt.gca().add_patch(mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+    #                                            fill=False, linewidth=1, edgecolor='r'))
     #     plt.title(title + " at %d:%d, %d:%d" % (ymin, ymax, xmin, xmax))
     #     plt.show()
     # def dbg_plt(box=None, title=None, rectangles=None, rectangles_showidx=False):
@@ -1428,8 +1429,8 @@ def return_boxes_of_images_by_order_of_reading_new(
     #         plt.title(title)
     #     if rectangles:
     #         for i, (xmin, xmax, ymin, ymax) in enumerate(rectangles):
-    #             ax.add_patch(patches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
-    #                                            fill=False, linewidth=1, edgecolor='r'))
+    #             ax.add_patch(mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+    #                                             fill=False, linewidth=1, edgecolor='r'))
     #             if rectangles_showidx:
     #                 ax.text((xmin+xmax)/2, (ymin+ymax)/2, str(i), c='r')
     #     plt.show()
@@ -1662,6 +1663,7 @@ def return_boxes_of_images_by_order_of_reading_new(
             cur = args[0]
             args = args[1:]
             # print("iter", cur, y_mid[cur], "%d:%d" % (x_starting[cur], x_ending[cur]))
+            # ruff: disable[B023] (rs: seems like a false positive)
             def get_span(start, y_top, y_bot):
                 # for last, l_top, l_bot, l_count in labelcolmap.get(start, []):
                 #     if y_top < l_bot and y_bot > l_top and last > start + 1:
@@ -1723,6 +1725,7 @@ def return_boxes_of_images_by_order_of_reading_new(
                                       bot])
                         # dbg_plt(boxes[-1], "non-recursive column %d box [%d]" % (column, len(boxes)))
                         column = last
+            # ruff: enable[B023]
             add_sep(cur)
 
     if right2left_readingorder:

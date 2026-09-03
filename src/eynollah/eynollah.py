@@ -16,13 +16,13 @@ document layout analysis (segmentation) with output in PAGE-XML
 # pyright: reportGeneralTypeIssues=false
 # pyright: reportOptionalSubscript=false
 
+from __future__ import annotations
 import logging
 import logging.handlers
 import sys
 
 import os
 import time
-from typing import Optional, List, Tuple
 from itertools import compress
 from pathlib import Path
 import multiprocessing as mp
@@ -84,8 +84,8 @@ MAX_SLOPE = 999
 KERNEL = np.ones((5, 5), np.uint8)
 
 
-_instance: Optional["Eynollah"] = None
-def _set_instance(instance: "Eynollah"):
+_instance: Eynollah | None = None
+def _set_instance(instance: Eynollah):
     global _instance
     _instance = instance
 def _run_single(*args, **kwargs):
@@ -121,7 +121,7 @@ class Eynollah:
         threshold_art_class_textline: float = 0.1,
         skip_layout_and_reading_order : bool = False,
         num_jobs : int = 0,
-        logger : Optional[logging.Logger] = None,
+        logger : logging.Logger | None = None,
     ):
         self.logger = logger or logging.getLogger('eynollah')
         self.model_zoo = model_zoo
@@ -222,6 +222,7 @@ class Eynollah:
 
     def calculate_width_height_by_columns(self, img, num_col, conf_col, width_early):
         self.logger.debug("enter calculate_width_height_by_columns")
+        # ruff: disable[SIM114] (clearer as is)
         if num_col == 1 and width_early < 1100:
             img_w_new = 2000
         elif num_col == 1 and width_early >= 2500:
@@ -256,6 +257,7 @@ class Eynollah:
             img_w_new = 6500  # 5400
         else:
             img_w_new = width_early
+        # ruff: enable[SIM114]
         img_h_new = img_w_new * img.shape[0] // img.shape[1]
 
         if conf_col < 0.9 and img_w_new < width_early:
@@ -354,7 +356,6 @@ class Eynollah:
         image['img_res'] = img_new
         image['scale_y'] = 1.0 * img_new.shape[0] / img.shape[0]
         image['scale_x'] = 1.0 * img_new.shape[1] / img.shape[1]
-        return
 
     # FIXME: does not actually run enhancement model, should be renamed
     def resize_and_enhance_image_with_column_classifier(self, image):
@@ -507,11 +508,11 @@ class Eynollah:
 
     def get_textlines_of_a_textregion_sorted(
             self,
-            textlines_cont: List[np.ndarray],
-            textlines_conf: List[float],
-            textlines_cx: List[float],
-            textlines_cy: List[float],
-            textlines_w_h: List[Tuple[int, int]],
+            textlines_cont: list[np.ndarray],
+            textlines_conf: list[float],
+            textlines_cx: list[float],
+            textlines_cy: list[float],
+            textlines_w_h: list[tuple[int, int]],
     ):
         N = len(textlines_cont)
         if N <= 1:
@@ -570,7 +571,7 @@ class Eynollah:
         return sorted_textlines_cont, sorted_textlines_conf
 
     def get_slopes_and_deskew_new_light2(
-            self, parents: List[TextRegion],
+            self, parents: list[TextRegion],
             textline_mask_tot: np.ndarray,
             textline_confidence: np.ndarray,
             slope_deskew: float
@@ -630,7 +631,7 @@ class Eynollah:
             # plt.show()
 
     def get_slopes_and_deskew_new_curved(
-            self, parents: List[TextRegion],
+            self, parents: list[TextRegion],
             textline_mask_tot,
             textline_confidence,
             num_col, slope_deskew, name
@@ -784,11 +785,15 @@ class Eynollah:
         text_regions_p = cv2.fillPoly(text_regions_p, pts=tabs_only_cont, color=label_tabs)
         text_regions_p[mask_art_only] = 0 # ensure instances are still separated
 
+        # plt.figure("early layout regions")
         # plt.subplot(1, 2, 1, title="early regions")
         # plt.imshow(prediction_regions)
         # plt.subplot(1, 2, 2, title="(reconstructed)")
         # plt.imshow(text_regions_p)
         # plt.show()
+        # plt.figure("early layout lines")
+        # plt.subplot(1, 2, 1, title="line mask")
+        # plt.imshow(textline_mask_tot_ea)
 
         textline_mask_tot_ea[text_regions_p != label_text] = 0
         confidence_textline[text_regions_p != label_text] = 0
@@ -797,8 +802,9 @@ class Eynollah:
 
         regions_without_separators = ((text_regions_p == label_text) |
                                       (text_regions_p == label_tabs)).astype(np.uint8)
-        #plt.imshow(textline_mask_tot_ea)
-        #plt.show()
+        # plt.subplot(1, 2, 2, title="(following text regions)")
+        # plt.imshow(textline_mask_tot_ea)
+        # plt.show()
         #print("inside 4 ", time.time()-t_in)
         self.logger.debug("exit get_early_layout")
         return (erosion_hurts,
@@ -905,8 +911,8 @@ class Eynollah:
 
         try:
             results = order_from_boxes(False)
-        except Exception as why:
-            self.logger.exception(why)
+        except Exception:
+            self.logger.exception("cannot match region contours w/ reading order boxes")
             results = order_from_boxes(True)
 
         self.logger.debug("exit do_order_of_regions")
@@ -963,12 +969,12 @@ class Eynollah:
             num_col = num_col + 1
             if not num_column_is_classified:
                 num_col_classifier = num_col
-            num_col_classifier = min(self.num_col_upper or num_col_classifier,
-                                     max(self.num_col_lower or num_col_classifier,
-                                         num_col_classifier))
-        except Exception as why:
-            self.logger.exception(why)
+        except Exception:
+            self.logger.exception("cannot determine overall number of columns analytically")
             num_col = None
+        num_col_classifier = min(self.num_col_upper or num_col_classifier,
+                                 max(self.num_col_lower or num_col_classifier,
+                                     num_col_classifier))
         return num_col, num_col_classifier
 
     def run_enhancement(self, image):
@@ -1089,7 +1095,7 @@ class Eynollah:
             num_col_classifier,
             erosion_hurts,
             regions_without_separators,
-            contours_h=[],
+            contours_h=[], # noqa: B006 (not modified)
             label_seps_fl=6,
     ):
         separator_mask = text_regions_p == label_seps_fl
@@ -1239,16 +1245,15 @@ class Eynollah:
 
             ante_list = []
             post_list = []
-            tot_counter = 0
             batch = []
-            for j in ij_list:
+            for tot_counter, j in enumerate(ij_list):
                 input_1[len(batch), :, :, 0] = labels_con[:, :, i]
                 input_1[len(batch), :, :, 1] = img_poly
                 input_1[len(batch), :, :, 2] = labels_con[:, :, j]
 
-                tot_counter += 1
                 batch.append(j)
-                if tot_counter % n_batch_inference == 0 or tot_counter == len(ij_list):
+                if ((tot_counter + 1) % n_batch_inference == 0 # batch full
+                    or tot_counter == len(ij_list) - 1): # last batch
                     y_pr = model.predict(input_1 , verbose=0)
                     for post_pr in y_pr:
                         if post_pr[0] >= 0.5:
@@ -1316,7 +1321,13 @@ class Eynollah:
             regions_without_separators) #textline_mask_tot_ea)
         return order_text
 
-    def filter_small_regions(self, textregions: List[Region], textregions_d: List[Region], area_factor: float, marginals: List[Region]) -> Tuple[List[Region], List[Region]]:
+    def filter_small_regions(
+            self,
+            textregions: list[Region],
+            textregions_d: list[Region],
+            area_factor: float,
+            marginals: list[Region],
+    ) -> tuple[list[Region], list[Region]]:
         """
         Split list of contours (and optionally deskewed contours) into
         small (<0.1% area) and large (>=0.1%) candidates. Then identify
@@ -1354,7 +1365,10 @@ class Eynollah:
 
         return textregions, textregions_d
 
-    def filter_small_textlines(self, textregions: List[TextRegion]) -> List[TextRegion]:
+    def filter_small_textlines(
+            self,
+            textregions: list[TextRegion],
+    ) -> list[TextRegion]:
         textlines = []
         indexes_parent = []
         indexes_child = []
@@ -1413,14 +1427,14 @@ class Eynollah:
 
     def run(self,
             overwrite: bool = False,
-            image_filename: Optional[str] = None,
-            dir_in: Optional[str] = None,
-            dir_out: Optional[str] = None,
-            dir_of_cropped_images: Optional[str] = None,
-            dir_of_layout: Optional[str] = None,
-            dir_of_deskewed: Optional[str] = None,
-            dir_of_all: Optional[str] = None,
-            dir_save_page: Optional[str] = None,
+            image_filename: str | None = None,
+            dir_in: str | None = None,
+            dir_out: str | None = None,
+            dir_of_cropped_images: str | None = None,
+            dir_of_layout: str | None = None,
+            dir_of_deskewed: str | None = None,
+            dir_of_all: str | None = None,
+            dir_save_page: str | None = None,
             num_jobs: int = 0,
             halt_fail: float = 0,
     ):
@@ -1509,7 +1523,7 @@ class Eynollah:
 
     def run_single(self,
                    img_filename: str,
-                   dir_out: Optional[str] = None,
+                   dir_out: str | None = None,
                    overwrite: bool = False,
                    img_pil=None,
                    pcgts=None,

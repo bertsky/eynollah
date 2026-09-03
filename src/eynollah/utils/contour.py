@@ -1,4 +1,5 @@
-from typing import List, Sequence, Union, Tuple
+from __future__ import annotations
+from collections.abc import Sequence
 from numbers import Number
 from functools import partial
 import itertools
@@ -163,10 +164,10 @@ def get_region_confidences(cnts, confidence_matrix):
 
 def match_deskewed_contours(
         slope_deskew: float,
-        regions_o, #: List[Region], # (cyclic import)
-        regions_d, #: List[Region], # (cyclic import)
-        shape_o: Tuple[int, int],
-        shape_d: Tuple[int, int],
+        regions_o, #: list[Region], # (cyclic import)
+        regions_d, #: list[Region], # (cyclic import)
+        shape_o: tuple[int, int],
+        shape_d: tuple[int, int],
 ) -> np.ndarray:
     from . import ensure_array
 
@@ -353,7 +354,7 @@ def estimate_skew_contours(contours):
     return angle
 
 def contour2polygon(
-        contour: Union[np.ndarray, Sequence[Sequence[Sequence[Number]]]],
+        contour: np.ndarray | Sequence[Sequence[Sequence[Number]]],
         dilate: int = 0,
         holes: bool = False,
 ):
@@ -458,8 +459,7 @@ def join_polygons(polygons: Sequence[Polygon], scale=20) -> Polygon:
     dists = np.zeros((npoly, npoly), dtype=float)
     for i, j in pairs:
         dist = polygons[i].distance(polygons[j])
-        if dist < 1e-5:
-            dist = 1e-5 # if pair merely touches, we still need to get an edge
+        dist = max(dist, 1e-5) # if pair merely touches, we still need to get an edge
         dists[i, j] = dist
         dists[j, i] = dist
     dists = minimum_spanning_tree(dists, overwrite=True)

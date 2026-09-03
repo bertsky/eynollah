@@ -1,6 +1,7 @@
 """
 extract page border (i.e. crop)
 """
+from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor
 import logging
@@ -28,8 +29,8 @@ class EynollahPageExtractor(Eynollah):
         enable_plotting : bool = False,
         input_binary : bool = False,
         ignore_page_extraction : bool = False,
-        num_col_upper : Optional[int] = None,
-        num_col_lower : Optional[int] = None,
+        num_col_upper : int | None = None,
+        num_col_lower : int | None = None,
         full_layout : bool = False,
         tables : bool = False,
         curved_line : bool = False,
@@ -78,9 +79,9 @@ class EynollahPageExtractor(Eynollah):
 
     def run(self,
             overwrite: bool = False,
-            image_filename: Optional[str] = None,
-            dir_in: Optional[str] = None,
-            dir_out: Optional[str] = None,
+            image_filename: str | None = None,
+            dir_in: str | None = None,
+            dir_out: str | None = None,
             **kwargs
     ):
         """
@@ -105,7 +106,7 @@ class EynollahPageExtractor(Eynollah):
 
     def run_single(self,
                    img_filename: str,
-                   dir_out: Optional[str] = None,
+                   dir_out: str | None = None,
                    overwrite: bool = False
     ) -> None:
         t0 = time.time()

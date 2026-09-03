@@ -625,11 +625,11 @@ def return_deskew_slop(img,
         angles = np.concatenate((np.linspace(-12, -7, n_tot_angles // 4),
                                  np.linspace(-6, 6, n_tot_angles // 2),
                                  np.linspace(7, 12, n_tot_angles // 4)))
-        angle, var = best_angle(angles)
+        angle, _ = best_angle(angles)
 
     else:
         angles = np.linspace(-25, 25, int(0.5 * n_tot_angles) + 10)
-        angle, var = best_angle(angles)
+        angle, _ = best_angle(angles)
 
     # precision stage:
     angles = np.linspace(angle - 1.5, angle + 1.5, n_tot_angles // 2)
@@ -768,12 +768,10 @@ def do_work_of_slopes_new_curved(
 
             textline_contours2 = return_contours_of_class(
                 mask_line, 1, min_area=3e-9 * rel_area)
-            textline_areas2 = np.array(list(map(cv2.contourArea, textline_contours2)))
-            try:
+            if len(textline_contours2):
+                textline_areas2 = list(map(cv2.contourArea, textline_contours2))
                 contour2 = textline_contours2[np.argmax(textline_areas2)]
                 textlines_cnt_per_region.append(contour2 + [x, y])
-            except Exception as why:
-                logger.error(why)
     else:
         textlines_cnt_per_region = textline_contours_postprocessing(all_text_region_raw,
                                                                     slope, contour_par)

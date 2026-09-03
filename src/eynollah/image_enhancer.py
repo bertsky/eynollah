@@ -2,10 +2,10 @@
 Image enhancer. The output can be written as same scale of input or in new predicted scale.
 """
 
+from __future__ import annotations
 import logging
 import time
 import os
-from typing import Optional
 
 import cv2
 
@@ -45,7 +45,7 @@ class Enhancer(Eynollah):
     def run_single(self,
                    img_filename: str,
                    img_pil=None,
-                   dir_out: Optional[str] = None,
+                   dir_out: str | None = None,
                    overwrite: bool = False,
     ) -> None:
         t0 = time.time()
@@ -73,9 +73,9 @@ class Enhancer(Eynollah):
         
     def run(self,
             overwrite: bool = False,
-            image_filename: Optional[str] = None,
-            dir_in: Optional[str] = None,
-            dir_out: Optional[str] = None,
+            image_filename: str | None = None,
+            dir_in: str | None = None,
+            dir_out: str | None = None,
     ):
         """
         Enlarge and enhance the scanned images

@@ -4,7 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 import os.path
 import logging
-from typing import Optional, List, Tuple
 
 import numpy as np
 import cv2
@@ -40,11 +39,11 @@ class EynollahXmlWriter:
 
     def __init__(
             self, *,
-            dir_out: Optional[str],
+            dir_out: str | None,
             image_filename: str,
             image_width: int,
             image_height: int,
-            pcgts: Optional[PcGtsType] = None,
+            pcgts: PcGtsType | None = None,
     ):
         self.logger = logging.getLogger('eynollah.writer')
         self.counter = EynollahIdCounter()
@@ -63,7 +62,7 @@ class EynollahXmlWriter:
 
     def calculate_points(
             self, contour: np.ndarray,
-            offset: Optional[List[int]] = None,
+            offset: list[int] | None = None,
             dilate: int = 0,
             open_holes: bool = False,
     ) -> str:
@@ -76,9 +75,9 @@ class EynollahXmlWriter:
 
     def serialize_lines_in_region(
             self, text_region: TextRegionType,
-            offset: List[int],
+            offset: list[int],
             counter: EynollahIdCounter,
-            lines: List[Region],
+            lines: list[Region],
     ) -> None:
         for line in lines:
             textline = TextLineType(
@@ -104,19 +103,17 @@ class EynollahXmlWriter:
         self,
         *,
         page: Region,
-        img_bin: Optional[np.ndarray] = None,
+        img_bin: np.ndarray | None = None,
         num_col: int = 1,
-        # ruff: disable[B006] (because this is safe here)
-        order_of_texts: List[int] = [],
-        textregions: List[TextRegion] = [],
-        textregions_h: List[TextRegion] = [],
-        images: List[Region] = [],
-        tables: List[Region] = [],
-        drop_caps: List[Region] = [],
-        marginals_left: List[TextRegion] = [],
-        marginals_right: List[TextRegion] = [],
-        seplines: List[Region] = [],
-        # ruff: enable[B006]
+        order_of_texts: list[int] = [], # ruff: ignore[B006] (safe here)
+        textregions: list[TextRegion] = [], # ruff: ignore[B006] (safe here)
+        textregions_h: list[TextRegion] = [], # ruff: ignore[B006] (safe here)
+        images: list[Region] = [], # ruff: ignore[B006] (safe here)
+        tables: list[Region] = [], # ruff: ignore[B006] (safe here)
+        drop_caps: list[Region] = [], # ruff: ignore[B006] (safe here)
+        marginals_left: list[TextRegion] = [], # ruff: ignore[B006] (safe here)
+        marginals_right: list[TextRegion] = [], # ruff: ignore[B006] (safe here)
+        seplines: list[Region] = [], # ruff: ignore[B006] (safe here)
     ):
         self.logger.debug('enter build_pagexml')
 

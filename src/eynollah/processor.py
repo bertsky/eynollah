@@ -1,5 +1,5 @@
+from __future__ import annotations
 from functools import cached_property
-from typing import Optional
 from PIL import Image
 from ocrd_models import OcrdPage
 from ocrd import OcrdPageResultImage, Processor, OcrdPageResult
@@ -46,7 +46,7 @@ class EynollahProcessor(Processor):
         if hasattr(self, 'eynollah'):
             del self.eynollah
 
-    def process_page_pcgts(self, *input_pcgts: Optional[OcrdPage], page_id: Optional[str] = None) -> OcrdPageResult:
+    def process_page_pcgts(self, *input_pcgts: OcrdPage | None, page_id: str | None = None) -> OcrdPageResult:
         """
         Performs cropping, region and line segmentation with Eynollah.
 

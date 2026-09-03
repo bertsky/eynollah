@@ -67,7 +67,9 @@ source = ["eynollah"]
 
 [tool.ruff]
 line-length = 120
+src = ["src/eynollah"]
 include = ["pyproject.toml", "src/eynollah/**/*.py"]
+extend-exclude = ["src/eynollah/training/*.py"]
 
 [tool.ruff.lint]
 ignore = [
@@ -79,12 +81,26 @@ ignore = [
 "I001",
 # disable unused variables
 "F841",
-# disable bare except
-"E722",
 # Use format specifiers instead of percent format
 "UP031",
 # `datetime.datetime.now()` called without a `tz` argument
 "DTZ005",
+# Unnecessary `dict()` call
+"C408",
+# Unpacked variable is never used (seem overly restrictive - we may refer to it in commented code)
+"RUF059",
+# Contains chained boolean comparison that can be simplified (style cannot be negotiated; we may need this for clarity)
+"PLR1716",
+# Use a single `if` statement instead of nested `if` statements (we may want consistent indentation)
+"SIM102",
+# Create your own exception (generic Exception ok for now)
+"TRY002",
+# Do not catch blind exception: `Exception` (TODO: drop)
+"BLE001",
+# disable bare except (TODO: drop)
+"E722",
+# `try`-`except`-`pass` detected, consider logging the exception (TODO: drop)
+"S110",
 ]
 
 [tool.ruff.format]

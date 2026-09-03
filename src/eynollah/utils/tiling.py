@@ -130,26 +130,26 @@ def do_prediction(
                     # now we know the number of classes
                     prediction = np.zeros((img_h, img_w, label_p_pred.shape[-1]), dtype=float)
 
-                for batch in range(batch):
-                    where = np.index_exp[batch_y_d[batch]: batch_y_u[batch],
-                                         batch_x_d[batch]: batch_x_u[batch]]
+                for k in range(batch):
+                    where = np.index_exp[batch_y_d[k]: batch_y_u[k],
+                                         batch_x_d[k]: batch_x_u[k]]
                     # shorter window on last tile
-                    part = np.index_exp[batch_y_s[batch]:,
-                                        batch_x_s[batch]:]
+                    part = np.index_exp[batch_y_s[k]:,
+                                        batch_x_s[k]:]
                     # normalize probability (where windows overlap)
-                    attenuation_y = np.ones(img_height_model - batch_y_s[batch])
-                    attenuation_x = np.ones(img_width_model - batch_x_s[batch])
-                    if margin and batch_j[batch] > 0:
+                    attenuation_y = np.ones(img_height_model - batch_y_s[k])
+                    attenuation_x = np.ones(img_width_model - batch_x_s[k])
+                    if margin and batch_j[k] > 0:
                         attenuation_y[:2 * margin] = window
-                    if margin and batch_j[batch] < nyf - 1:
+                    if margin and batch_j[k] < nyf - 1:
                         attenuation_y[-2 * margin:] = 1 - window
-                    if margin and batch_i[batch] > 0:
+                    if margin and batch_i[k] > 0:
                         attenuation_x[:2 * margin] = window
-                    if margin and batch_i[batch] < nxf - 1:
+                    if margin and batch_i[k] < nxf - 1:
                         attenuation_x[-2 * margin:] = 1 - window
-                    label_p_pred[batch][part] *= attenuation_y[:, np.newaxis, np.newaxis]
-                    label_p_pred[batch][part] *= attenuation_x[np.newaxis, :, np.newaxis]
-                    prediction[where][part] += label_p_pred[batch][part]
+                    label_p_pred[k][part] *= attenuation_y[:, np.newaxis, np.newaxis]
+                    label_p_pred[k][part] *= attenuation_x[np.newaxis, :, np.newaxis]
+                    prediction[where][part] += label_p_pred[k][part]
 
                 batch_i = []
                 batch_j = []
@@ -169,13 +169,13 @@ def do_prediction(
     if thresholding_for_some_classes:
         seg_mask_label(
             seg, prediction[:, :, 4] > 0.03,
-            label=4) # 
+            label=4) # art
         seg_mask_label(
             seg, prediction[:, :, 0] > 0.25,
             label=0) # bg
         seg_mask_label(
             seg, prediction[:, :, 3] > 0.10 & seg == 0,
-            label=3) # line
+            label=3) # sep
     if thresholding_for_artificial_class:
         seg_art = prediction[:, :, artificial_class] >= threshold_art_class
         seg_mask_label(seg, seg_art,
@@ -315,26 +315,26 @@ def do_prediction_new_concept(
                     # now we know the number of classes
                     prediction = np.zeros((img_h, img_w, label_p_pred.shape[-1]), dtype=float)
 
-                for batch in range(batch):
-                    where = np.index_exp[batch_y_d[batch]: batch_y_u[batch],
-                                         batch_x_d[batch]: batch_x_u[batch]]
+                for k in range(batch):
+                    where = np.index_exp[batch_y_d[k]: batch_y_u[k],
+                                         batch_x_d[k]: batch_x_u[k]]
                     # shorter window on last tile
-                    part = np.index_exp[batch_y_s[batch]:,
-                                        batch_x_s[batch]:]
+                    part = np.index_exp[batch_y_s[k]:,
+                                        batch_x_s[k]:]
                     # normalize probability (where windows overlap)
-                    attenuation_y = np.ones(img_height_model - batch_y_s[batch])
-                    attenuation_x = np.ones(img_width_model - batch_x_s[batch])
-                    if margin and batch_j[batch] > 0:
+                    attenuation_y = np.ones(img_height_model - batch_y_s[k])
+                    attenuation_x = np.ones(img_width_model - batch_x_s[k])
+                    if margin and batch_j[k] > 0:
                         attenuation_y[:2 * margin] = window
-                    if margin and batch_j[batch] < nyf - 1:
+                    if margin and batch_j[k] < nyf - 1:
                         attenuation_y[-2 * margin:] = 1 - window
-                    if margin and batch_i[batch] > 0:
+                    if margin and batch_i[k] > 0:
                         attenuation_x[:2 * margin] = window
-                    if margin and batch_i[batch] < nxf - 1:
+                    if margin and batch_i[k] < nxf - 1:
                         attenuation_x[-2 * margin:] = 1 - window
-                    label_p_pred[batch][part] *= attenuation_y[:, np.newaxis, np.newaxis]
-                    label_p_pred[batch][part] *= attenuation_x[np.newaxis, :, np.newaxis]
-                    prediction[where][part] += label_p_pred[batch][part]
+                    label_p_pred[k][part] *= attenuation_y[:, np.newaxis, np.newaxis]
+                    label_p_pred[k][part] *= attenuation_x[np.newaxis, :, np.newaxis]
+                    prediction[where][part] += label_p_pred[k][part]
 
                 batch_i = []
                 batch_j = []
