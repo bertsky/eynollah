@@ -1568,7 +1568,7 @@ def return_boxes_of_images_by_order_of_reading_new(
         # analyse connected components of regions to gain additional separators
         # and prepare a map for cross-column boxes
         ccounts = np.bincount(ccomps[top: bot].flatten())
-        ccounts_median = np.median(ccounts)
+        ccounts_median = np.median(ccounts) if len(ccounts) else 0
         col_ccounts = np.stack([np.bincount(ccomps[top: bot, left: right].flatten(),
                                             minlength=ccounts.size)
                                 for left, right in pairwise(peaks_neg_tot)])
