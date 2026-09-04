@@ -730,7 +730,7 @@ class Eynollah:
             return erosion_hurts, None, None, None, None, textline_mask_tot_ea, None, None
 
         #print("inside 2 ", time.time()-t_in)
-        if num_col_classifier == 1 or num_col_classifier == 2:
+        if num_col_classifier < 3:
             if img_height_h / img_width_h > 2.5:
                 patches = True
             else:
@@ -738,7 +738,14 @@ class Eynollah:
             self.logger.debug("resized to %dx%d for %d cols",
                               img_w_new, img_h_new, num_col_classifier)
         else:
-            new_w = (900+ (num_col_classifier-3)*100)
+            # training generate-gt pagexml2label's custom_config for region_1_2 model
+            # seems to use columns_width (1000/1300)/1600/1900/2200/2500, but the
+            # earliest implementation extrapolating region_1_2 model for more columns
+            # used (1000/1500)/900/1000/1100/1200, which seems too small,
+            # (and it does fracture small text regions), while the trained tile sizes
+            # seem to cause problems with larger features (large headings and images),
+            # hence the following compromise:
+            new_w = 1200 + 200 * (num_col_classifier - 3)
             new_h = new_w * img_height_h // img_width_h
             img_resized = resize_image(img_resized, new_h, new_w)
             self.logger.debug("resized to %dx%d for %d cols",
