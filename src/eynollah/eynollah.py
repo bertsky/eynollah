@@ -1312,6 +1312,7 @@ class Eynollah:
             num_col_classifier,
             erosion_hurts,
     ):
+        text_mask = np.copy(regions_without_separators) # before erosion
         if not erosion_hurts:
             regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=2)
 
@@ -1325,7 +1326,7 @@ class Eynollah:
             textregions_h_cont,
             drop_caps_cont,
             boxes,
-            regions_without_separators) #textline_mask_tot_ea)
+            text_mask)
         return order_text
 
     def filter_small_regions(
