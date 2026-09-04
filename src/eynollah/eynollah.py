@@ -1719,13 +1719,15 @@ class Eynollah:
             self.get_full_layout(image_page, text_regions_p, num_col_classifier)
 
         if self.full_layout:
-            regions_without_separators[text_regions_p == label_drop_fl] = 1 # also cover in reading-order
-            textline_mask_tot_ea_org[text_regions_p == label_drop_fl] = 0 # skip for textlines
-            textline_mask_tot_ea[text_regions_p == label_drop_fl] = 1 # needed for reading order
-            drop_caps_cont = return_contours_of_class(text_regions_p, label_drop_fl, min_area=3e-5)
+            drop_caps_cont = return_contours_of_class(text_regions_p, label_drop_fl, min_area=1e-4)
             drop_caps_conf = get_region_confidences(drop_caps_cont, regionsfl_confidence)
             drop_caps = [Region(cont, conf=conf)
                          for cont, conf in zip(drop_caps_cont, drop_caps_conf)]
+            drop_caps_mask = np.zeros_like(regions_without_separators)
+            drop_caps_mask = cv2.fillPoly(drop_caps_mask, pts=drop_caps_cont, color=1)
+            regions_without_separators[drop_caps_mask] = 1 # also cover in reading-order
+            textline_mask_tot_ea_org[drop_caps_mask] = 0 # skip for textlines
+            textline_mask_tot_ea[drop_caps_mask] = 1 # needed for reading order
             t6 = time.time()
             self.logger.info("Full layout took %.1fs", t6 - t5)
         else:
