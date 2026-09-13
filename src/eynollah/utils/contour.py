@@ -220,8 +220,6 @@ def estimate_skew_contours(contours):
     # print("usable length", w_in[usable] / w_avg, usable, angle_in[usable])
     if not np.any(usable):
         raise ValueError("not enough contours with consistent length")
-    if np.count_nonzero(usable) == 1:
-        return angle_in[usable][0]
     # 4. there is no way to distinguish between +90 and -89.9 here,
     # so map to [0,180] when calculating averages, then map back to [-90,90]
     # (we don't want -90 and +89 to average zero, or +1 and +179 to average 90)
