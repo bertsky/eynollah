@@ -197,6 +197,7 @@ def estimate_skew_contours(contours):
     if not len(contours):
         raise ValueError("not enough contours")
     _, size_in, angle_in = zip(*map(cv2.minAreaRect, contours))
+    # angle_in ranges [-90, 0)
     w_in, h_in = np.array(size_in).T
     angle_in = np.array(angle_in)
     # 1. depending on how contours are oriented,
@@ -206,7 +207,8 @@ def estimate_skew_contours(contours):
     transposed = h_in > w_in
     # print("transposed", transposed, angle_in)
     w_in[transposed], h_in[transposed] = h_in[transposed], w_in[transposed]
-    angle_in[transposed] -= 90
+    angle_in[transposed] += 90
+    # angle_in now ranges [-90, 90)
     # 2. now we look at aspect ratio: too short
     # textlines do not yield reliable angles
     usable = w_in > 2.5 * h_in
