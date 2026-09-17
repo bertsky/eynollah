@@ -1022,17 +1022,20 @@ class Eynollah:
             # variation of projection profile: from gaps between text lines
             axis = 1
         else:
-
-        if num_col_classifier < 3:
-            if num_col_classifier == 1:
-                img_w_new = 1000
-            else:
-                img_w_new = 1300
-            img_h_new = img_w_new * textline_mask_tot_ea.shape[0] // textline_mask_tot_ea.shape[1]
-            textline_mask_tot_ea = resize_image(textline_mask_tot_ea, img_h_new, img_w_new)
             # variation of projection profile: also try from column gaps
             # (whatever is better)
             axis = (0, 1)
+
+        img_w_new = {
+            1: 1000,
+            2: 1300,
+            3: 1600,
+            4: 1800,
+            5: 2000,
+            6: 2200,
+        }[num_col_classifier]
+        img_h_new = img_w_new * textline_mask_tot_ea.shape[0] // textline_mask_tot_ea.shape[1]
+        textline_mask_tot_ea = resize_image(textline_mask_tot_ea, img_h_new, img_w_new)
 
         #print(textline_mask_tot_ea.shape, 'textline_mask_tot_ea deskew')
         textline_mask_tot_ea = cv2.erode(textline_mask_tot_ea, KERNEL, iterations=2)
