@@ -1022,8 +1022,6 @@ class Eynollah:
             # variation of projection profile: from gaps between text lines
             axis = 1
         else:
-            # variation of projection profile: from column gaps
-            axis = 0
 
         if num_col_classifier < 3:
             if num_col_classifier == 1:
@@ -1032,16 +1030,21 @@ class Eynollah:
                 img_w_new = 1300
             img_h_new = img_w_new * textline_mask_tot_ea.shape[0] // textline_mask_tot_ea.shape[1]
             textline_mask_tot_ea = resize_image(textline_mask_tot_ea, img_h_new, img_w_new)
+            # variation of projection profile: also try from column gaps
+            # (whatever is better)
+            axis = (0, 1)
 
         #print(textline_mask_tot_ea.shape, 'textline_mask_tot_ea deskew')
         textline_mask_tot_ea = cv2.erode(textline_mask_tot_ea, KERNEL, iterations=2)
         model = self.model_zoo.get("deskewing")
-        slope_deskew = return_deskew_slop(textline_mask_tot_ea, 2,
-                                          model,
-                                          n_tot_angles=30,
-                                          main_page=True,
-                                          axis=axis,
-                                          logger=self.logger, plotter=self.plotter)
+        if (slope_deskew := return_deskew_slop(
+                textline_mask_tot_ea, 2,
+                model,
+                n_tot_angles=30,
+                main_page=True,
+                axis=axis,
+                logger=self.logger, plotter=self.plotter)) is None:
+            slope_deskew = 0
         self.logger.info("slope_deskew: %.2f°", slope_deskew)
         return slope_deskew
 

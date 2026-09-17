@@ -23,6 +23,7 @@ from .contour import (
 from . import (
     get_projection_var,
     box2rect,
+    odd,
 )
 
 
@@ -473,7 +474,7 @@ def textline_contours_postprocessing(textline_mask, angle, contour_parent):
                               if len(contour) > 3]
     return contours_rotated_clean
 
-def separate_lines_new2(img_crop, _, num_col, slope_region, logger=None, plotter=None):
+def separate_lines_new2(img_crop, model, num_col, slope_region, logger=None, plotter=None):
     """
     morph textline mask to cope with warped lines by independently deskewing horizontal slices
     """
@@ -508,10 +509,12 @@ def separate_lines_new2(img_crop, _, num_col, slope_region, logger=None, plotter
         img_xline = img_crop[box]
 
         if img_xline.any():
-            slope_xline = return_deskew_slop(img_xline, 2,
-                                             model,
-                                             logger=logger,
-                                             plotter=plotter)
+            if (slope_xline := return_deskew_slop(
+                    img_xline, 2,
+                    model,
+                    logger=logger,
+                    plotter=plotter)) is None:
+                slope_xline = slope_region
         else:
             continue
 
@@ -525,6 +528,8 @@ def separate_lines_new2(img_crop, _, num_col, slope_region, logger=None, plotter
         pad_left = pad_right = img_xline.shape[1]
         img_xline_padded = np.pad(img_xline, ((pad_above, pad_below),
                                               (pad_left, pad_right)))
+        # from matplotlib import pyplot as plt
+        # from matplotlib import patches
         # plt.subplot(2, 2, 1, title="xline padded")
         # plt.imshow(img_xline_padded)
         img_xline_rotated = rotate_image(img_xline_padded, slope_xline)
@@ -564,19 +569,19 @@ def do_image_rotation(angle, img=None, axis=1, sigma_des=1.0, logger=None):
     if not img.size:
         return 0
     img_rot = rotate_image(img, angle)
-    if axis == 0:
+    if axis == (0, 1):
         # produce both col and row results
         var_cols = get_projection_var(img_rot, sigma_des, axis=0)
         var_rows = get_projection_var(img_rot, sigma_des, axis=1)
         return var_cols, var_rows
     else:
-        var_rows = get_projection_var(img_rot, sigma_des, axis=1)
-        return var_rows
+        var = get_projection_var(img_rot, sigma_des, axis=axis)
+        return var
 
 def return_deskew_slop(img,
                        sigma_des,
                        model,
-                       n_tot_angles=100,
+                       n_tot_angles=20,
                        main_page=False,
                        axis=1,
                        logger=None,
@@ -623,21 +628,24 @@ def return_deskew_slop(img,
     if main_page and width > height:
         angle = best_angle([])
 
-        angles = np.linspace(angle - 22.5, angle + 22.5, n_tot_angles)
+        angles = np.linspace(angle - 22.5, angle + 22.5, odd(n_tot_angles))
         angle = best_angle(angles)
     elif main_page:
         #angles = np.linspace(-12, 12, n_tot_angles)#np.array([0 , 45 , 90 , -45])
-        angles = np.concatenate((np.linspace(-12, -7, n_tot_angles // 4),
-                                 np.linspace(-6, 6, n_tot_angles // 2),
-                                 np.linspace(7, 12, n_tot_angles // 4)))
+        angles = np.concatenate((np.linspace(-12, -7, odd(n_tot_angles / 4)),
+                                 np.linspace(-6, 6, odd(n_tot_angles / 2)),
+                                 np.linspace(7, 12, odd(n_tot_angles / 4))))
         angle = best_angle(angles)
 
     else:
-        angles = np.linspace(-25, 25, int(0.5 * n_tot_angles) + 10)
+        angles = np.linspace(-25, 25, odd(n_tot_angles // 2 + 10))
         angle = best_angle(angles)
 
+    if angle is None:
+        return None
+
     # precision stage:
-    angles = np.linspace(angle - 1.5, angle + 1.5, n_tot_angles // 2)
+    angles = np.linspace(angle - 1.5, angle + 1.5, odd(n_tot_angles // 2))
     angle = best_angle(angles)
 
     return angle
@@ -656,6 +664,8 @@ def get_smallest_skew(img, sigma_des, angles,
     if plotter:
         plotter.save_plot_of_rotation_angle(angles, results, name)
     try:
+        if not img.size:
+            raise ValueError("image size is zero")
         if model is not None:
             res_vars, res_args = model.predict((img[np.newaxis],
                                                 np.deg2rad(angles[np.newaxis]),
@@ -672,7 +682,7 @@ def get_smallest_skew(img, sigma_des, angles,
                 row_dist = row_var / row_var0 / abs(row_angle)
             else:
                 row_dist = 0
-            if axis == 0 and col_dist > row_dist:
+            if axis == 0 or axis == (0, 1) and col_dist > row_dist:
                 var0, var, angle, dist = col_var0, col_var, col_angle, col_dist
             else:
                 var0, var, angle, dist = row_var0, row_var, row_angle, row_dist
@@ -726,7 +736,7 @@ def get_smallest_skew(img, sigma_des, angles,
                 else:
                     dist = 0
 
-        if angle and dist < MIN_VAR_BOOST_DEG_NRM:
+        if var < var0 or angle and dist < MIN_VAR_BOOST_DEG_NRM:
             # from matplotlib import pyplot as plt
             # plt.figure()
             # plt.subplot(1, 2, 1)
@@ -737,12 +747,12 @@ def get_smallest_skew(img, sigma_des, angles,
             # plt.scatter(angle, var)
             # plt.scatter(0, var0)
             # plt.show()
-            logger.warning("signal from projection curve is too weak (%.1f) for deskewing", dist)
-            return 0
+            logger.warning("signal from projection curve is too weak (%.1f) for deskewing (%.1f°)", dist, angle)
+            return None
         return angle
     except:
         logger.exception("cannot determine best angle among %s", str(angles))
-        return 0
+        return None
 
 def do_work_of_slopes_new_curved(
         contour_par,
@@ -791,12 +801,14 @@ def do_work_of_slopes_new_curved(
                 else:
                     transposed = False
                     sigma = y_diff_mean
-                slope = return_deskew_slop(img_int_p, max(1.0, 0.1 * sigma),
-                                           model,
-                                           logger=logger,
-                                           name=name,
-                                           plotter=plotter)
-                if transposed:
+                if (slope := return_deskew_slop(
+                        img_int_p, max(1.0, 0.1 * sigma),
+                        model,
+                        logger=logger,
+                        name=name,
+                        plotter=plotter)) is None:
+                    slope = slope_deskew
+                elif transposed:
                     slope = -90 - slope if slope < 0 else 90 - slope
                 if abs(slope - slope_deskew) < 0.5:
                     slope = slope_deskew

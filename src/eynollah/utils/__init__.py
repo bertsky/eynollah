@@ -28,6 +28,9 @@ from .contour import (contour2polygon,
                       return_contours_of_class)
 
 
+def odd(num):
+    return int(num) + int((num + 1) % 2)
+
 def pairwise(iterable):
     # pairwise('ABCDEFG') → AB BC CD DE EF FG
 
