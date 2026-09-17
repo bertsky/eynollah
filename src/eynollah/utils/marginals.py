@@ -206,7 +206,7 @@ def get_marginals(num_col, slope_deskew,
     #             [text_mask_d_y.max()], color='r',
     #             label='max = %d%%' % max_text_thickness_percent)
     # ax2.scatter(gaps_y, text_mask_d_ys[gaps_y], label='gaps_y', color='m')
-    # for i in range(len(peaks_y)):
+    # for i in range(len(gaps_y)):
     #     ax2.text(gaps_y[i], text_mask_d_ys[gaps_y[i]], str(props_y['prominences'][i]))
     # ax1 = plt.subplot(2, 2, 4, title="early layout")
     # ax1.imshow(early_layout, aspect='auto')
@@ -294,7 +294,7 @@ def get_marginals(num_col, slope_deskew,
         # ax3.scatter(text_mask_d_lx[peaks_lx], peaks_lx, label='peaks_lx', color='m')
         # ax3.scatter(text_mask_d_lx[props_lx['left_bases']], props_lx['left_bases'], label='bases_l', color='g')
         # for i in range(len(peaks_lx)):
-        #     ax3.text(text_mask_d_lx[peaks_lx[i]], peaks_lx[i], str(props_lx['prominences_l'][i]))
+        #     ax3.text(text_mask_d_lx[peaks_lx[i]], peaks_lx[i], str(proms_lx[i]))
         # ax3.vlines([med_main_width_l], 0, height, colors='m')
         if np.isclose(med_main_width_l,
                       mid_point_l - first_nonzero,
@@ -374,7 +374,7 @@ def get_marginals(num_col, slope_deskew,
         # ax3.scatter(text_mask_d_rx[peaks_rx] + mid_point_r, peaks_rx, label='peaks_rx', color='m')
         # ax3.scatter(text_mask_d_rx[props_rx['left_bases']] + mid_point_r, props_rx['left_bases'], label='bases_r', color='g')
         # for i in range(len(peaks_rx)):
-        #     ax3.text(text_mask_d_rx[peaks_rx[i]] + mid_point_r, peaks_rx[i], str(props_rx['prominences_r'][i]))
+        #     ax3.text(text_mask_d_rx[peaks_rx[i]] + mid_point_r, peaks_rx[i], str(proms_rx[i]))
         # ax3.vlines([med_main_width_r + mid_point_r], 0, height, colors='m')
         if np.isclose(med_main_width_r,
                       last_nonzero - mid_point_r,
@@ -454,6 +454,7 @@ def get_marginals(num_col, slope_deskew,
     # plot_polygon(marg_r, color='red')
     # plot_polygon(main, color='magenta')
     # plt.show()
+    main3 = main.buffer(3)
     marg_l3 = marg_l.buffer(3)
     marg_r3 = marg_r.buffer(3)
     line_l3 = line_l.offset_curve(5)
@@ -472,7 +473,7 @@ def get_marginals(num_col, slope_deskew,
         aspect = (maxy - miny) / (maxx - minx)
         if poly.within(marg_l3) or poly.within(marg_r3):
             marg_contours.append(cont)
-        elif poly.within(main):
+        elif poly.within(main3):
             continue
         elif poly.intersects(marg_l) or poly.intersects(marg_r):
             # partial: split, but ignore marg parts overly vertical
