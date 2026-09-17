@@ -161,6 +161,7 @@ class Eynollah:
         # (but _resized for full page images is too slow - better resize on CPU in numpy)
         loadable = [
             "col_classifier",
+            "deskewing",
             #"enhancement", # todo: enhancement_patched
             "page",
             #"region"
@@ -184,6 +185,9 @@ class Eynollah:
             if model.endswith(('_resized', '_patched')):
                 # autosized models do not have a predefined input_shape
                 # (and don't need one)
+                continue
+            if model == 'deskewing':
+                # fixed batch size 1, variable size inputs
                 continue
             self.logger.debug("model %s has input shape %s", model,
                               self.model_zoo.get(model).input_shape)
@@ -640,6 +644,7 @@ class Eynollah:
             return
         self.logger.debug("enter get_slopes_and_deskew_new_curved")
         kwargs = dict(textline_mask_tot_ea=textline_mask_tot,
+                      model=self.model_zoo.get("deskewing"),
                       num_col=num_col,
                       slope_deskew=slope_deskew,
                       MAX_SLOPE=MAX_SLOPE,
@@ -1030,7 +1035,9 @@ class Eynollah:
 
         #print(textline_mask_tot_ea.shape, 'textline_mask_tot_ea deskew')
         textline_mask_tot_ea = cv2.erode(textline_mask_tot_ea, KERNEL, iterations=2)
+        model = self.model_zoo.get("deskewing")
         slope_deskew = return_deskew_slop(textline_mask_tot_ea, 2,
+                                          model,
                                           n_tot_angles=30,
                                           main_page=True,
                                           axis=axis,

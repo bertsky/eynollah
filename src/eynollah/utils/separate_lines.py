@@ -509,6 +509,7 @@ def separate_lines_new2(img_crop, _, num_col, slope_region, logger=None, plotter
 
         if img_xline.any():
             slope_xline = return_deskew_slop(img_xline, 2,
+                                             model,
                                              logger=logger,
                                              plotter=plotter)
         else:
@@ -574,6 +575,7 @@ def do_image_rotation(angle, img=None, axis=1, sigma_des=1.0, logger=None):
 
 def return_deskew_slop(img,
                        sigma_des,
+                       model,
                        n_tot_angles=100,
                        main_page=False,
                        axis=1,
@@ -586,6 +588,8 @@ def return_deskew_slop(img,
     Args:
         img: text mask for projection method
         sigma_des: smoothing parameter
+        model: Predictor instance which takes an image and an array of angles
+               and returns the best angle and its variance
     Keyword Args:
         n_tot_angles: number of angles to try
               (more means slower but more precision)
@@ -601,28 +605,21 @@ def return_deskew_slop(img,
     if main_page and plotter:
         plotter.save_plot_of_textline_density(img, name=name, axis=axis)
 
-    height, width = img.shape[:2]
-    max_shape = int(np.max(img.shape) * 1.1)
-
-    onset_x = int(0.5 * (max_shape - width))
-    onset_y = int(0.5 * (max_shape - height))
-
-    img_resized = np.zeros((max_shape, max_shape), dtype=np.uint8)
-    img_resized[onset_y: onset_y + height,
-                onset_x: onset_x + width] = img
-
     def best_angle(angles):
         if not len(angles):
             angles = np.array([-45, 0, 45, 90,])
             axis0 = 1 # try only rows
         else:
             axis0 = axis
-        return get_smallest_skew(img_resized, sigma_des, angles,
+        return get_smallest_skew(img, sigma_des,
+                                 angles,
                                  axis=axis0,
+                                 model=model,
                                  logger=logger,
                                  name=name,
                                  plotter=plotter)
 
+    height, width = img.shape[:2]
     if main_page and width > height:
         angle = best_angle([])
 
@@ -647,6 +644,7 @@ def return_deskew_slop(img,
 
 def get_smallest_skew(img, sigma_des, angles,
                       axis=1,
+                      model=None,
                       logger=None,
                       plotter=None,
                       name=None,
@@ -654,48 +652,79 @@ def get_smallest_skew(img, sigma_des, angles,
 ):
     if logger is None:
         logger = getLogger(__package__)
-    results = [do_image_rotation(angle, img=img,
-                                 axis=axis,
-                                 sigma_des=sigma_des,
-                                 logger=logger)
-               for angle in angles]
+            
     if plotter:
         plotter.save_plot_of_rotation_angle(angles, results, name)
     try:
-        var_res = np.array(results)
-        assert var_res.any()
-        if var_res.ndim == 2:
-            # axis = 0 (cols): analyse both col and row results
-            var0_cols = get_projection_var(img, sigma_des, axis=0)
-            var0_rows = get_projection_var(img, sigma_des, axis=1)
-            idx_cols = np.argmax(var_res[:, 0])
-            idx_rows = np.argmax(var_res[:, 1])
-            angle_cols = angles[idx_cols]
-            angle_rows = angles[idx_rows]
-            var_cols = var_res[idx_cols, 0]
-            var_rows = var_res[idx_rows, 1]
-            if angle_cols:
-                dist_cols = var_cols / var0_cols / abs(angle_cols)
+        if model is not None:
+            res_vars, res_args = model.predict((img[np.newaxis],
+                                                np.deg2rad(angles[np.newaxis]),
+                                                np.array(sigma_des)[np.newaxis]))
+            (col_var0, col_var), (row_var0, row_var) = res_vars[0]
+            col_arg, row_arg = res_args[0]
+            col_angle = angles[col_arg]
+            row_angle = angles[row_arg]
+            if col_angle:
+                col_dist = col_var / col_var0 / abs(col_angle)
             else:
-                dist_cols = 0
-            if angle_rows:
-                dist_rows = var_rows / var0_rows / abs(angle_rows)
+                col_dist = 0
+            if row_angle:
+                row_dist = row_var / row_var0 / abs(row_angle)
             else:
-                dist_rows = 0
-            if dist_cols > dist_rows:
-                var0, var, angle, dist = var0_cols, var_cols, angle_cols, dist_cols
+                row_dist = 0
+            if axis == 0 and col_dist > row_dist:
+                var0, var, angle, dist = col_var0, col_var, col_angle, col_dist
             else:
-                var0, var, angle, dist = var0_rows, var_rows, angle_rows, dist_rows
-
+                var0, var, angle, dist = row_var0, row_var, row_angle, row_dist
         else:
-            var0 = get_projection_var(img, sigma_des, axis=axis)
-            idx = np.argmax(var_res)
-            angle = angles[idx]
-            var = var_res[idx]
-            if angle:
-                dist = var / var0 / abs(angle)
+            # enlarge canvas
+            height, width = img.shape[:2]
+            max_shape = int(np.max(img.shape) * 1.1)
+            onset_x = (max_shape - width) // 2
+            onset_y = (max_shape - height) // 2
+            img_resized = np.zeros((max_shape, max_shape), dtype=np.uint8)
+            img_resized[onset_y: onset_y + height,
+                        onset_x: onset_x + width] = img
+            # rotate and calculate variance along axis
+            results = [do_image_rotation(angle, img=img,
+                                         axis=axis,
+                                         sigma_des=sigma_des,
+                                         logger=logger)
+                       for angle in angles]
+            var_res = np.array(results)
+            assert var_res.any()
+            if var_res.ndim == 2:
+                # axis = 0 (cols): analyse both col and row results
+                col_var0 = get_projection_var(img, sigma_des, axis=0)
+                row_var0 = get_projection_var(img, sigma_des, axis=1)
+                col_idx = np.argmax(var_res[:, 0])
+                row_idx = np.argmax(var_res[:, 1])
+                col_angle = angles[col_idx]
+                row_angle = angles[row_idx]
+                col_var = var_res[col_idx, 0]
+                row_var = var_res[row_idx, 1]
+                if col_angle:
+                    col_dist = col_var / col_var0 / abs(col_angle)
+                else:
+                    col_dist = 0
+                if row_angle:
+                    row_dist = row_var / row_var0 / abs(row_angle)
+                else:
+                    row_dist = 0
+                if col_dist > row_dist:
+                    var0, var, angle, dist = col_var0, col_var, col_angle, col_dist
+                else:
+                    var0, var, angle, dist = row_var0, row_var, row_angle, row_dist
+
             else:
-                dist = 0
+                var0 = get_projection_var(img, sigma_des, axis=axis)
+                idx = np.argmax(var_res)
+                angle = angles[idx]
+                var = var_res[idx]
+                if angle:
+                    dist = var / var0 / abs(angle)
+                else:
+                    dist = 0
 
         if angle and dist < MIN_VAR_BOOST_DEG_NRM:
             # from matplotlib import pyplot as plt
@@ -703,7 +732,8 @@ def get_smallest_skew(img, sigma_des, angles,
             # plt.subplot(1, 2, 1)
             # plt.imshow(img)
             # plt.subplot(1, 2, 2)
-            # plt.plot(angles, results)
+            # if model is None:
+            #     plt.plot(angles, results, 'x')
             # plt.scatter(angle, var)
             # plt.scatter(0, var0)
             # plt.show()
@@ -717,6 +747,7 @@ def get_smallest_skew(img, sigma_des, angles,
 def do_work_of_slopes_new_curved(
         contour_par,
         textline_mask_tot_ea=None,
+        model=None,
         num_col=1, slope_deskew=0.0,
         logger=None, MAX_SLOPE=999,
         KERNEL=None, plotter=None,
@@ -761,6 +792,7 @@ def do_work_of_slopes_new_curved(
                     transposed = False
                     sigma = y_diff_mean
                 slope = return_deskew_slop(img_int_p, max(1.0, 0.1 * sigma),
+                                           model,
                                            logger=logger,
                                            name=name,
                                            plotter=plotter)
@@ -792,7 +824,8 @@ def do_work_of_slopes_new_curved(
 
     if abs(slope) < 45:
         # apply horizontal tiling, deskew each patch independently
-        mask_textlines_separated_d = separate_lines_new2(all_text_region_raw, 0,
+        mask_textlines_separated_d = separate_lines_new2(all_text_region_raw,
+                                                         model,
                                                          num_col, slope,
                                                          logger=logger, plotter=plotter)
         # plt.subplot(1, 2, 1, title="textline mask of region")

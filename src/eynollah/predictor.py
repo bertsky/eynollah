@@ -124,6 +124,8 @@ class Predictor(mp.context.SpawnProcess):
                 # (notice we are not listing _resized/_patched models here,
                 #  because its inputs/outputs will have varying shapes)
                 REBATCH_SIZE = {
+                    # fixed (variable image size)...
+                    "deskewing": 1,
                     # small models (448x448)...
                     "col_classifier": 2,
                     "page": 2,

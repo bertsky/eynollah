@@ -19,6 +19,7 @@ MODEL_VRAM_LIMITS = {
     "enhancement": 980, # due to bs 3
     "col_classifier": 210,
     "page": 618,
+    "deskewing": 350,
     "textline": 1880, # 954 for bs 1
     "region_1_2": 1580,
     "region_fl_np": 1756,
@@ -78,8 +79,6 @@ class EynollahModelZoo:
         Translate model_{type,variant} tuple into an absolute (or relative) Path
         """
         spec = self.specs.get(model_category, model_variant)
-        if spec.category in ('characters', 'num_to_char'):
-            return self.model_path('ocr') / spec.filename
         if not Path(spec.filename).is_absolute() and absolute:
             model_path = Path(self.model_basedir).joinpath(spec.filename)
         else:
@@ -123,6 +122,11 @@ class EynollahModelZoo:
             # elif model_category.endswith('_patched'):
             #     model_category = model_category[:-8]
             #     load_kwargs["patched"] = True
+            if (model_category == 'deskewing' and
+                not self.model_path('deskewing').exists()):
+                self.logger.warning("found no deskewing model, ignoring")
+                ret['deskewing'] = None
+                continue
 
             model = Predictor(self.logger, self)
             model.load_model(model_category, **load_kwargs)
