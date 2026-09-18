@@ -80,6 +80,7 @@ class EynollahPageExtractor(Eynollah):
             loadable.append("binarization")
         if self.enable_deskewing:
             loadable.append("textline")
+            loadable.append("deskewing")
         self.model_zoo.load_models(*loadable, device=device)
 
     def run(self,
