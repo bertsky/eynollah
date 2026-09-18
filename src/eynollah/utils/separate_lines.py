@@ -695,6 +695,7 @@ def get_smallest_skew(img, sigma_des, angles,
             img_resized = np.zeros((max_shape, max_shape), dtype=np.uint8)
             img_resized[onset_y: onset_y + height,
                         onset_x: onset_x + width] = img
+            img = img_resized
             # rotate and calculate variance along axis
             results = [do_image_rotation(angle, img=img,
                                          axis=axis,
@@ -740,10 +741,10 @@ def get_smallest_skew(img, sigma_des, angles,
             # from matplotlib import pyplot as plt
             # plt.figure()
             # plt.subplot(1, 2, 1)
-            # plt.imshow(img)
+            # plt.imshow(img + rotate_image(img, angle))
             # plt.subplot(1, 2, 2)
             # if model is None:
-            #     plt.plot(angles, results, 'x')
+            #     plt.plot(angles, results, 'x-')
             # plt.scatter(angle, var)
             # plt.scatter(0, var0)
             # plt.show()
