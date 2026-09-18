@@ -1335,6 +1335,8 @@ def return_boxes_of_images_by_order_of_reading_new(
             label_right = min(width_tot - 1, label_right)
             label_top = max(0, label_top)
             label_bot = min(height_tot - 1, label_bot)
+            if label_left == label_right:
+                continue
             # disregard vertical portions of the cross-column label
             # if they are split by vertical separators already
             # (thus connected across columns only above or below
