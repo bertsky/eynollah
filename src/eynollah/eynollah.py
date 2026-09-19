@@ -1652,11 +1652,6 @@ class Eynollah:
             self.plotter.save_plot_of_textlines(textline_mask_tot_ea, image['img_res'], image['name'])
 
         slope_deskew = self.run_deskew(textline_mask_tot_ea, num_col_classifier)
-        # if ratio of text regions to page area is smaller that 30%,
-        # then ignore skew angle above 45°
-        if (abs(slope_deskew) > 45 and
-            ((text_regions_p == label_text).sum()) <= 0.3 * image_page.size):
-            slope_deskew = 0
         page.skew = slope_deskew
         if self.plotter:
             self.plotter.save_deskewed_image(slope_deskew, image['img'], image['name'])
