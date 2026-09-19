@@ -6,6 +6,7 @@ import cv2
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
 from scipy.stats import linregress
+from scipy.optimize import minimize_scalar
 from ocrd_utils import (
     shift_coordinates,
     rotate_coordinates,
@@ -563,7 +564,7 @@ def separate_lines_new2(img_crop, model, num_col, slope_region, logger=None, plo
 
     return img_crop_revised
 
-def do_image_rotation(angle, img=None, axis=1, sigma_des=1.0, logger=None):
+def do_image_rotation(angle, img=None, axis=1, sigma_des=1.0, negate=False, logger=None):
     if logger is None:
         logger = getLogger(__package__)
     if not img.size:
@@ -571,11 +572,11 @@ def do_image_rotation(angle, img=None, axis=1, sigma_des=1.0, logger=None):
     img_rot = rotate_image(img, angle)
     if axis == (0, 1):
         # produce both col and row results
-        var_cols = get_projection_var(img_rot, sigma_des, axis=0)
-        var_rows = get_projection_var(img_rot, sigma_des, axis=1)
+        var_cols = get_projection_var(img_rot, sigma_des, axis=0, negate=negate)
+        var_rows = get_projection_var(img_rot, sigma_des, axis=1, negate=negate)
         return var_cols, var_rows
     else:
-        var = get_projection_var(img_rot, sigma_des, axis=axis)
+        var = get_projection_var(img_rot, sigma_des, axis=axis, negate=negate)
         return var
 
 def return_deskew_slop(img,
@@ -611,14 +612,9 @@ def return_deskew_slop(img,
         plotter.save_plot_of_textline_density(img, name=name, axis=axis)
 
     def best_angle(angles):
-        if not len(angles):
-            angles = np.array([-45, 0, 45, 90,])
-            axis0 = 1 # try only rows
-        else:
-            axis0 = axis
         return get_smallest_skew(img, sigma_des,
                                  angles,
-                                 axis=axis0,
+                                 axis=axis,
                                  model=model,
                                  logger=logger,
                                  name=name,
@@ -626,12 +622,9 @@ def return_deskew_slop(img,
 
     height, width = img.shape[:2]
     if main_page and width > height:
-        angle = best_angle([])
-
-        angles = np.linspace(angle - 22.5, angle + 22.5, odd(n_tot_angles))
+        angles = np.linspace(-45, 45, odd(n_tot_angles))
         angle = best_angle(angles)
     elif main_page:
-        #angles = np.linspace(-12, 12, n_tot_angles)#np.array([0 , 45 , 90 , -45])
         angles = np.concatenate((np.linspace(-12, -7, odd(n_tot_angles / 4)),
                                  np.linspace(-6, 6, odd(n_tot_angles / 2)),
                                  np.linspace(7, 12, odd(n_tot_angles / 4))))
@@ -643,11 +636,6 @@ def return_deskew_slop(img,
 
     if angle is None:
         return None
-
-    # precision stage:
-    angles = np.linspace(angle - 1.5, angle + 1.5, odd(n_tot_angles // 2))
-    angle = best_angle(angles)
-
     return angle
 
 def get_smallest_skew(img, sigma_des, angles,
@@ -667,6 +655,7 @@ def get_smallest_skew(img, sigma_des, angles,
         if not img.size:
             raise ValueError("image size is zero")
         if model is not None:
+            # FIXME: apply local search optimization here, too
             res_vars, res_args = model.predict((img[np.newaxis],
                                                 np.deg2rad(angles[np.newaxis]),
                                                 np.array(sigma_des)[np.newaxis]))
@@ -697,41 +686,49 @@ def get_smallest_skew(img, sigma_des, angles,
                         onset_x: onset_x + width] = img
             img = img_resized
             # rotate and calculate variance along axis
-            results = [do_image_rotation(angle, img=img,
-                                         axis=axis,
-                                         sigma_des=sigma_des,
-                                         logger=logger)
-                       for angle in angles]
-            var_res = np.array(results)
-            assert var_res.any()
-            if var_res.ndim == 2:
-                # axis = 0 (cols): analyse both col and row results
+            min_kwargs = dict(bounds=(angles[0], angles[-1]),
+                              method='bounded',
+                              options=dict(maxiter=len(angles),
+                                           disp=3, xatol=0.04))
+            fun_kwargs = dict(img=img,
+                              sigma_des=sigma_des,
+                              logger=logger,
+                              negate=True)
+            if axis == (0, 1):
                 col_var0 = get_projection_var(img, sigma_des, axis=0)
                 row_var0 = get_projection_var(img, sigma_des, axis=1)
-                col_idx = np.argmax(var_res[:, 0])
-                row_idx = np.argmax(var_res[:, 1])
-                col_angle = angles[col_idx]
-                row_angle = angles[row_idx]
-                col_var = var_res[col_idx, 0]
-                row_var = var_res[row_idx, 1]
-                if col_angle:
-                    col_dist = col_var / col_var0 / abs(col_angle)
-                else:
-                    col_dist = 0
-                if row_angle:
-                    row_dist = row_var / row_var0 / abs(row_angle)
-                else:
-                    row_dist = 0
+                col_fun = partial(do_image_rotation, **fun_kwargs, axis=0)
+                row_fun = partial(do_image_rotation, **fun_kwargs, axis=1)
+                col_res = minimize_scalar(col_fun, **min_kwargs)
+                row_res = minimize_scalar(row_fun, **min_kwargs)
+                if not col_res.success and not row_res.success:
+                    logger.warning("variance maximization for deskewing failed: %s / %s",
+                                   col_res.message, row_res.message)
+                    return None
+                col_dist = (-col_res.fun / col_var0 / abs(col_res.x)
+                            if col_res.success and col_res.x else 0)
+                row_dist = (-row_res.fun / row_var0 / abs(row_res.x)
+                            if row_res.success and row_res.x else 0)
                 if col_dist > row_dist:
-                    var0, var, angle, dist = col_var0, col_var, col_angle, col_dist
+                    angle = col_res.x
+                    var = -col_res.fun
+                    var0 = col_var0
+                    dist = col_dist
                 else:
-                    var0, var, angle, dist = row_var0, row_var, row_angle, row_dist
-
+                    angle = row_res.x
+                    var = -row_res.fun
+                    var0 = row_var0
+                    dist = row_dist
             else:
                 var0 = get_projection_var(img, sigma_des, axis=axis)
-                idx = np.argmax(var_res)
-                angle = angles[idx]
-                var = var_res[idx]
+                fun = partial(do_image_rotation, **fun_kwargs, axis=axis)
+                res = minimize_scalar(fun, **min_kwargs)
+                if not res.success:
+                    logger.warning("variance maximization for deskewing failed: %s",
+                                   res.message)
+                    return None
+                var = -res.fun
+                angle = res.x
                 if angle:
                     dist = var / var0 / abs(angle)
                 else:

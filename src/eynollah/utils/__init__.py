@@ -279,10 +279,13 @@ def boosting_headers_by_longshot_region_segmentation(textregion_pre_p, textregio
                      (textregion_pre_p != 2)] = 1
     return textregion_pre_p
 
-def get_projection_var(regions_without_separators, sigma, axis=1):
+def get_projection_var(regions_without_separators, sigma, axis=1, negate=False):
     z = regions_without_separators.sum(axis=axis)
     z = gaussian_filter1d(z, sigma)
-    return np.std(z)
+    z = np.std(z)
+    if negate:
+        return -z
+    return z
 
 def find_num_col(
         regions_without_separators,
