@@ -689,7 +689,7 @@ def get_smallest_skew(img, sigma_des, angles,
             min_kwargs = dict(bounds=(angles[0], angles[-1]),
                               method='bounded',
                               options=dict(maxiter=len(angles),
-                                           disp=3, xatol=0.04))
+                                           disp=1, xatol=0.04))
             fun_kwargs = dict(img=img,
                               sigma_des=sigma_des,
                               logger=logger,
@@ -714,11 +714,15 @@ def get_smallest_skew(img, sigma_des, angles,
                     var = -col_res.fun
                     var0 = col_var0
                     dist = col_dist
+                    logger.info("preferring column (%.1f) over row (%.1f) signal for deskewing",
+                                col_dist, row_dist)
                 else:
                     angle = row_res.x
                     var = -row_res.fun
                     var0 = row_var0
                     dist = row_dist
+                    logger.info("preferring row (%.1f) over column (%.1f) signal for deskewing",
+                                row_dist, col_dist)
             else:
                 var0 = get_projection_var(img, sigma_des, axis=axis)
                 fun = partial(do_image_rotation, **fun_kwargs, axis=axis)
