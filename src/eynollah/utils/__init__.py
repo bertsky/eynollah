@@ -974,7 +974,7 @@ def find_number_of_columns_in_document(
     horizontal = np.copy(separators_closeup)
     vertical = np.copy(separators_closeup)
 
-    horizontal_size = horizontal.shape[1] // 30
+    horizontal_size = horizontal.shape[1] // 40 # 30
     # find horizontal lines by morphology
     horizontalStructure = cv2.getStructuringElement(cv2.MORPH_RECT, (horizontal_size, 1))
     horizontal = cv2.morphologyEx(horizontal, cv2.MORPH_OPEN, horizontalStructure)
@@ -982,7 +982,7 @@ def find_number_of_columns_in_document(
     # re-insert deleted horizontal contours
     horizontal = cv2.fillPoly(horizontal, pts=cnts_hor_e, color=1)
 
-    vertical_size = vertical.shape[0] // 30
+    vertical_size = vertical.shape[0] // 40 # 30
     # find vertical lines by morphology
     verticalStructure = cv2.getStructuringElement(cv2.MORPH_RECT, (1, vertical_size))
     vertical = cv2.morphologyEx(vertical, cv2.MORPH_OPEN, verticalStructure)
