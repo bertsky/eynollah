@@ -121,26 +121,26 @@ def get_marginals(num_col, slope_deskew,
     # plt.subplot(1, 3, 1, title="original text mask")
     # plt.imshow(text_mask_d)
     if height <= 1500:
-        pass
+        text_mask_de = text_mask_d
     elif 1500 < height <= 1800:
-        text_mask_d = resize_image(text_mask_d, int(height / 1.5), width)
-        text_mask_d = cv2.erode(text_mask_d, kernel, iterations=3)
+        text_mask_de = resize_image(text_mask_d, int(height / 1.5), width)
+        text_mask_de = cv2.erode(text_mask_de, kernel, iterations=3)
         # rs: and back to original size
-        text_mask_d = resize_image(text_mask_d, height, width)
+        text_mask_de = resize_image(text_mask_de, height, width)
     else:
-        text_mask_d = resize_image(text_mask_d, int(height / 1.8), width)
-        text_mask_d = cv2.erode(text_mask_d, kernel, iterations=5)
+        text_mask_de = resize_image(text_mask_d, int(height / 1.8), width)
+        text_mask_de = cv2.erode(text_mask_de, kernel, iterations=5)
         # rs: and back to original size
-        text_mask_d = resize_image(text_mask_d, height, width)
+        text_mask_de = resize_image(text_mask_de, height, width)
     # plt.subplot(1, 3, 2, title="eroded text mask")
     # plt.imshow(text_mask_d)
 
-    text_mask_d = cv2.erode(text_mask_d, kernel_hor, iterations=4)
+    text_mask_de = cv2.erode(text_mask_de, kernel_hor, iterations=4)
     # plt.subplot(1, 3, 3, title="horizontally eroded")
     # plt.imshow(text_mask_d)
     # plt.show()
-    text_mask_d_y = text_mask_d.sum(axis=0) # len = width
-    #text_mask_d_x = text_mask_d.sum(axis=1) # len = height
+    text_mask_d_y = text_mask_de.sum(axis=0) # len = width
+    #text_mask_d_x = text_mask_de.sum(axis=1) # len = height
 
     max_text_thickness = text_mask_d_y.max()
     max_text_thickness_percent = 100. * max_text_thickness / height
