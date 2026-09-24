@@ -175,6 +175,8 @@ def get_marginals(num_col, slope_deskew,
     mid_point = (last_nonzero + first_nonzero) // 2
     mid_point_l = mid_point - (mid_point - first_nonzero) // 3
     mid_point_r = mid_point + (last_nonzero - mid_point) // 3
+    qrt_point_l = mid_point - (mid_point - first_nonzero) // 2
+    qrt_point_r = mid_point + (last_nonzero - mid_point) // 2
     
     # find minima (horizontal gaps)
     gaps_y, props_y = find_peaks(
@@ -281,10 +283,12 @@ def get_marginals(num_col, slope_deskew,
         # if there are subpeaks left of (=above) the main peaks (=paragraphs)
         # and the average difference between them is approximately the jump point
         # then that jump point cannot be from genuine marginalia
-        text_mask_d_lx = text_mask_d[:, :mid_point_l].sum(axis=1)
-        text_mask_d_lxs = gaussian_filter1d(text_mask_d_lx, 3)
+        text_mask_d_lx = text_mask_d[:, :qrt_point_l].sum(axis=1)
+        text_mask_d_lxs = gaussian_filter1d(text_mask_d_lx, 2)
         text_mask_d_lxs2 = np.diff(text_mask_d_lxs.astype(int))
+        text_mask_d_lxs3 = np.diff(text_mask_d_lxs2.astype(int))
         peaks_lx, props_lx = find_peaks(text_mask_d_lx,
+                                        distance=MIN_DIST_GAPS,
                                         prominence=MIN_DIST_GAPS)
         bases_lx = props_lx['left_bases']
         proms_lx = text_mask_d_lx[peaks_lx] - text_mask_d_lx[bases_lx]
@@ -292,31 +296,32 @@ def get_marginals(num_col, slope_deskew,
         # ax3.plot(text_mask_d_lx, list(range(height)), label='unsmoothed', color='b')
         # ax3.plot(text_mask_d_lxs, list(range(height)), label='smoothed', color='m')
         # ax3.scatter(text_mask_d_lx[peaks_lx], peaks_lx, label='peaks_lx', color='m')
-        # ax3.scatter(text_mask_d_lx[props_lx['left_bases']], props_lx['left_bases'], label='bases_l', color='g')
         # for i in range(len(peaks_lx)):
         #     ax3.text(text_mask_d_lx[peaks_lx[i]], peaks_lx[i], str(proms_lx[i]))
         # ax3.vlines([med_main_width_l], 0, height, colors='m')
         if np.isclose(med_main_width_l,
-                      mid_point_l - first_nonzero,
+                      qrt_point_l - first_nonzero,
                       rtol=0.1):
             flexpoints_lx, _ = find_peaks(np.abs(text_mask_d_lxs2 < 3))
+            flexpoints_lx -= 1
             #ax3.scatter(text_mask_d_lx[flexpoints_lx], flexpoints_lx, label="flexpoints_lx", color='y')
             subpeaks_lx = flexpoints_lx[
+                # no minima/saddles
+                (text_mask_d_lxs3[flexpoints_lx] < 0) &
+                # not near the main maxima
                 ~np.isclose(text_mask_d_lx[flexpoints_lx], med_main_width_l, rtol=0.05) &
-                ~np.isclose(text_mask_d_lx[flexpoints_lx], 0, atol=20)]
-            # consider only those subpeaks left of peaks:
-            subpeaks_lx = subpeaks_lx[np.searchsorted(bases_lx, subpeaks_lx, 'right') ==
-                                      np.searchsorted(peaks_lx, subpeaks_lx) + 1]
-            if len(subpeaks_lx):
-                med_preceding_width_l = np.median(text_mask_d_lx[subpeaks_lx])
+                # not too small
+                ~np.isclose(text_mask_d_lx[flexpoints_lx], 0, atol=0.3 * med_main_width_l)]
+            if len(subpeaks_lx) > 0.5 * len(peaks_lx):
+                med_sub_width_l = np.median(text_mask_d_lx[subpeaks_lx])
                 indent_l = np.isclose(jumps_l - first_nonzero,
-                                      med_main_width_l - med_preceding_width_l,
+                                      med_main_width_l - med_sub_width_l,
                                       rtol=0.1, atol=10)
                 logger.debug("%d out of %d step candidates for left margin are from indentation",
                              np.count_nonzero(indent_l), len(jumps_l))
                 jumps_l = jumps_l[~indent_l]
                 # ax3.scatter(text_mask_d_lx[subpeaks_lx], subpeaks_lx, label="subpeaks_lx", color='y')
-                # ax3.vlines([med_preceding_width_l], 0, height, colors='b')
+                # ax3.vlines([med_sub_width_l], 0, height, colors='b')
         # search from right (widest) to left
         for jump in reversed(jumps_l):
             if jump < first_nonzero + MIN_DIST_GAPS:
@@ -361,42 +366,45 @@ def get_marginals(num_col, slope_deskew,
         # if there are subpeaks right of (=below) the main peaks (=paragraphs)
         # and the average difference between them is approximately the jump point
         # then that jump point cannot be from genuine marginalia
-        text_mask_d_rx = text_mask_d[:, mid_point_r:].sum(axis=1)
-        text_mask_d_rxs = gaussian_filter1d(text_mask_d_rx, 3)
+        text_mask_d_rx = text_mask_d[:, qrt_point_r:].sum(axis=1)
+        text_mask_d_rxs = gaussian_filter1d(text_mask_d_rx, 2)
         text_mask_d_rxs2 = np.diff(text_mask_d_rxs.astype(int))
+        text_mask_d_rxs3 = np.diff(text_mask_d_rxs2.astype(int))
         peaks_rx, props_rx = find_peaks(text_mask_d_rx,
+                                        distance=MIN_DIST_GAPS,
                                         prominence=MIN_DIST_GAPS)
         bases_rx = props_rx['right_bases']
         proms_rx = text_mask_d_rx[peaks_rx] - text_mask_d_rx[bases_rx]
         med_main_width_r = np.median(text_mask_d_rx[peaks_rx])
-        # ax3.plot(text_mask_d_rx + mid_point_r, list(range(height)), label='unsmoothed', color='b')
-        # ax3.plot(text_mask_d_rxs + mid_point_r, list(range(height)), label='smoothed', color='m')
-        # ax3.scatter(text_mask_d_rx[peaks_rx] + mid_point_r, peaks_rx, label='peaks_rx', color='m')
-        # ax3.scatter(text_mask_d_rx[props_rx['left_bases']] + mid_point_r, props_rx['left_bases'], label='bases_r', color='g')
+        # ax3.plot(text_mask_d_rx + qrt_point_r, list(range(height)), label='unsmoothed', color='b')
+        # ax3.plot(text_mask_d_rxs + qrt_point_r, list(range(height)), label='smoothed', color='m')
+        # ax3.scatter(text_mask_d_rx[peaks_rx] + qrt_point_r, peaks_rx, label='peaks_rx', color='m')
         # for i in range(len(peaks_rx)):
-        #     ax3.text(text_mask_d_rx[peaks_rx[i]] + mid_point_r, peaks_rx[i], str(proms_rx[i]))
-        # ax3.vlines([med_main_width_r + mid_point_r], 0, height, colors='m')
+        #     ax3.text(text_mask_d_rx[peaks_rx[i]] + qrt_point_r, peaks_rx[i], str(proms_rx[i]))
+        # ax3.vlines([med_main_width_r + qrt_point_r], 0, height, colors='m')
         if np.isclose(med_main_width_r,
-                      last_nonzero - mid_point_r,
+                      last_nonzero - qrt_point_r,
                       rtol=0.1):
             flexpoints_rx, _ = find_peaks(np.abs(text_mask_d_rxs2 < 3))
-            #ax3.scatter(text_mask_d_rx[flexpoints_rx] + mid_point_r, flexpoints_rx, label="flexpoints_rx", color='y')
+            flexpoints_rx -= 1
+            #ax3.scatter(text_mask_d_rx[flexpoints_rx] + qrt_point_r, flexpoints_rx, label="flexpoints_rx", color='y')
             subpeaks_rx = flexpoints_rx[
+                # no minima/saddles
+                (text_mask_d_rxs3[flexpoints_rx] < 0) &
+                # not near the main maxima
                 ~np.isclose(text_mask_d_rx[flexpoints_rx], med_main_width_r, rtol=0.05) &
-                ~np.isclose(text_mask_d_rx[flexpoints_rx], 0, atol=20)]
-            # consider only those subpeaks right of peaks:
-            subpeaks_rx = subpeaks_rx[np.searchsorted(peaks_rx, subpeaks_rx, 'right') ==
-                                      np.searchsorted(bases_rx, subpeaks_rx) + 1]
-            if len(subpeaks_rx):
-                med_following_width_r = np.median(text_mask_d_rx[subpeaks_rx])
+                # not too small
+                ~np.isclose(text_mask_d_rx[flexpoints_rx], 0, atol=0.3 * med_main_width_r)]
+            if len(subpeaks_rx) > 0.5 * len(peaks_rx):
+                med_sub_width_r = np.median(text_mask_d_rx[subpeaks_rx])
                 indent_r = np.isclose(last_nonzero - jumps_r,
-                                      med_main_width_r - med_following_width_r,
+                                      med_main_width_r - med_sub_width_r,
                                       rtol=0.1, atol=10)
                 logger.debug("%d out of %d step candidates for right margin are from indentation",
                              np.count_nonzero(indent_r), len(jumps_r))
                 jumps_r = jumps_r[~indent_r]
-                # ax3.scatter(text_mask_d_rx[subpeaks_rx] + mid_point_r, subpeaks_rx, label="subpeaks_rx", color='y')
-                # ax3.vlines([med_following_width_r + mid_point_r], 0, height, colors='b')
+                # ax3.scatter(text_mask_d_rx[subpeaks_rx] + qrt_point_r, subpeaks_rx, label="subpeaks_rx", color='y')
+                # ax3.vlines([med_sub_width_r + qrt_point_r], 0, height, colors='b')
         # search from left (widest) to right
         for jump in jumps_r:
             if jump > last_nonzero - MIN_DIST_GAPS:
