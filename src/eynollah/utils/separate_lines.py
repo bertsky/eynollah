@@ -738,6 +738,10 @@ def get_smallest_skew(img, sigma_des, angles,
                 else:
                     dist = 0
 
+        if np.isclose(var, var0):
+            angle = 0
+            dist = 0
+            var = var0
         if var < var0 or angle and dist < MIN_VAR_BOOST_DEG_NRM:
             # from matplotlib import pyplot as plt
             # plt.figure()
