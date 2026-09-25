@@ -236,10 +236,15 @@ class Reorder(Eynollah):
         self.logger.debug("ordering %d paragraphs, %d headings and %d drop-capitals",
                           len(para_ids), len(head_ids), len(drop_ids))
         if self.model_based:
+            marg = [Region(cont=cont) for cont in marg_cont]
+            marg_l, marg_r = self.separate_marginals_and_order(
+                marg, width // 2)
             order_text = self.run_order_of_regions_with_model(
                 para_cont,
                 head_cont,
                 drop_cont,
+                contours(marg_l),
+                contours(marg_r),
                 region_labels)
         else:
             if img_filename and (

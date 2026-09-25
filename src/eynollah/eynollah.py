@@ -1159,6 +1159,9 @@ class Eynollah:
             contours_only_text_parent_h,
             # not trained on drops directly, but it does work:
             contours_drop_capitals,
+            # same for marginalia:
+            contours_marginalia_l,
+            contours_marginalia_r,
             text_regions_p,
             n_batch_inference=1, # 3 (causes OOM on 8 GB GPUs)
             # input labels as in run_boxes_full_layout
@@ -1229,14 +1232,15 @@ class Eynollah:
             indexes_of_located_cont.extend(missing_textregions[:, np.newaxis])
             contours_only_dilated.extend(contours_only_text_parent[missing_textregions])
 
-            args_cont_h = np.arange(len(contours_only_text_parent_h))
-            indexes_of_located_cont.extend(args_cont_h[:, np.newaxis] +
-                                           len(contours_only_text_parent))
-
-            args_cont_drop = np.arange(len(contours_drop_capitals))
-            indexes_of_located_cont.extend(args_cont_drop[:, np.newaxis] +
-                                           len(contours_only_text_parent) +
-                                           len(contours_only_text_parent_h))
+            pos = len(contours_only_text_parent)
+            for length in [len(contours_only_text_parent_h),
+                           len(contours_drop_capitals),
+                           len(contours_marginalia_l),
+                           len(contours_marginalia_r),
+            ]:
+                args = np.arange(length)[:, np.newaxis] + pos
+                indexes_of_located_cont.extend(args)
+                pos += length
 
             co_text_all = contours_only_dilated
         else:
@@ -1258,6 +1262,8 @@ class Eynollah:
                                contour[:, 0, 0].min(): contour[:, 0, 0].max()] = 1
         co_text_all.extend(contours_only_text_parent_h)
         co_text_all.extend(contours_drop_capitals)
+        co_text_all.extend(contours_marginalia_l)
+        co_text_all.extend(contours_marginalia_r)
 
         if not len(co_text_all):
             return []
@@ -1331,7 +1337,7 @@ class Eynollah:
                         org_contours_indexes.extend(indexes_of_located_cont[i][
                             np.argsort(cy_of_located[i])])
                 else:
-                    # header or drop-capital region
+                    # header or drop-capital or marginalia region
                     org_contours_indexes.extend(indexes_of_located_cont[i])
             return org_contours_indexes
         else:
@@ -1867,6 +1873,8 @@ class Eynollah:
                 contours(textregions),
                 contours(textregions_h) if not self.headers_off else [],
                 contours(drop_caps),
+                contours(marginals_left),
+                contours(marginals_right),
                 text_regions_p)
         else:
             if np.abs(slope_deskew) < SLOPE_THRESHOLD:
