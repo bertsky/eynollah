@@ -172,6 +172,7 @@ class EynollahXmlWriter:
                                   conf=region.conf),
                 orientation=-region.skew
             )
+            textregion.set_custom('layout {sub_type:margi_left;} ')
             self.serialize_lines_in_region(textregion, offset, counter, region.lines)
             pcgts.Page.add_TextRegion(textregion)
 
@@ -182,6 +183,7 @@ class EynollahXmlWriter:
                                   conf=region.conf),
                 orientation=-region.skew
             )
+            textregion.set_custom('layout {sub_type:margi_right;} ')
             self.serialize_lines_in_region(textregion, offset, counter, region.lines)
             pcgts.Page.add_TextRegion(textregion)
 
