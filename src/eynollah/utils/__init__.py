@@ -589,7 +589,6 @@ def split_textregion_main_vs_head(
         regions_model_1: np.ndarray,
         regions_model_full: np.ndarray,
         textregions: list[Region],
-        textregions_d: list[Region],
         label_text=1,
         label_head_full=2,
         label_head_final=2,
@@ -644,8 +643,6 @@ def split_textregion_main_vs_head(
     return (regions_model_1,
             list(compress(textregions, main)),
             list(compress(textregions, ~main)),
-            list(compress(textregions_d, main)),
-            list(compress(textregions_d, ~main)),
     )
 
 def small_textlines_to_parent_adherence2(
@@ -706,7 +703,15 @@ def small_textlines_to_parent_adherence2(
                 # replace original
                 textregion.lines[idx_large].contour = polygon2contour(large_poly)
 
-def order_of_regions(contours_main, contours_head, contours_drop, contours_lmar, contours_rmar, r2l=False):
+def order_of_regions(
+        contours_main,
+        contours_head,
+        contours_drop,
+        contours_lmar,
+        contours_rmar,
+        contours_tabs,
+        contours_imgs,
+        r2l=False):
     """
     Order text region contours within a single column bbox in a top-down-left-right way.
 
@@ -723,17 +728,25 @@ def order_of_regions(contours_main, contours_head, contours_drop, contours_lmar,
       * contours_drop: the drop-capital region contours to be sorted
       * contours_lmar: the left marginalia region contours to be sorted
       * contours_rmar: the right marginalia region contours to be sorted
+      * contours_tabs: the table region contours to be sorted
+      * contours_igms: the image region contours to be sorted
 
     Keyword Args:
       * r2l: whether contours within groups should be ordered
         right-to-left (instead of left-to-right)
 
+    \b
     Returns: a tuple of
       * the list of contour indexes overall within this box
-            (i.e. into main+head+drop+lmar+rmar)
+            (i.e. into main+head+drop+lmar+rmar+tabs+imgs)
       * the list of types
-            (1 for paragraph, 2 for heading, 3 for drop-capital, 
-             4 for left-marginalia, 5 for right-marginalia)
+            ("main" for paragraph,
+             "head" for heading,
+             "drop" for drop-capital, 
+             "lmar" for left-marginalia,
+             "rmar" for right-marginalia,
+             "tabs" for table,
+             "imgs" for image)
       * the list of contour indexes for the respective type
             (i.e. into contours_main or contours_head or contours_drop
              or contours_lmar or contours_rmar)
@@ -742,7 +755,9 @@ def order_of_regions(contours_main, contours_head, contours_drop, contours_lmar,
              len(contours_head) +
              len(contours_drop) +
              len(contours_lmar) +
-             len(contours_rmar))
+             len(contours_rmar) +
+             len(contours_tabs) +
+             len(contours_imgs))
     if not total:
         return [], [], []
 
@@ -750,18 +765,24 @@ def order_of_regions(contours_main, contours_head, contours_drop, contours_lmar,
                                contours_head,
                                contours_drop,
                                contours_lmar,
-                               contours_rmar))
+                               contours_rmar,
+                               contours_tabs,
+                               contours_imgs))
     index = np.arange(len(contours))
-    types = np.array([1] * len(contours_main) +
-                     [2] * len(contours_head) +
-                     [3] * len(contours_drop) +
-                     [4] * len(contours_lmar) +
-                     [5] * len(contours_rmar))
+    types = np.array(["main"] * len(contours_main) +
+                     ["head"] * len(contours_head) +
+                     ["drop"] * len(contours_drop) +
+                     ["lmar"] * len(contours_lmar) +
+                     ["rmar"] * len(contours_rmar) +
+                     ["tabs"] * len(contours_tabs) +
+                     ["imgs"] * len(contours_imgs))
     local_index = np.array(list(range(len(contours_main))) +
                            list(range(len(contours_head))) +
                            list(range(len(contours_drop))) +
                            list(range(len(contours_lmar))) +
-                           list(range(len(contours_rmar))))
+                           list(range(len(contours_rmar))) +
+                           list(range(len(contours_tabs))) +
+                           list(range(len(contours_imgs))))
     cx, cy = find_center_of_contours(contours)
     y_min = [contour[:, 0, 1].min() for contour in contours]
     y_max = [contour[:, 0, 1].max() for contour in contours]
@@ -794,7 +815,7 @@ def order_of_regions(contours_main, contours_head, contours_drop, contours_lmar,
         group = np.array(group)
         xorder = np.argsort(cx[group])[::-1 if r2l else 1]
         group = group[xorder]
-        for j in np.flatnonzero(types[group] == 5):
+        for j in np.flatnonzero(types[group] == "rmar"):
             # right marginalia must be sorted r2l locally
             if j:
                 group[j - 1], group[j] = group[j], group[j - 1]

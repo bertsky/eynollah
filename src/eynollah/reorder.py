@@ -282,21 +282,13 @@ class Reorder(Eynollah):
                 head_cont = [(cont * scale_factor).astype(int) for cont in head_cont]
                 drop_cont = [(cont * scale_factor).astype(int) for cont in drop_cont]
                 marg_cont = [(cont * scale_factor).astype(int) for cont in marg_cont]
+                tabs_cont = [(cont * scale_factor).astype(int) for cont in tabs_cont]
+                imgs_cont = [(cont * scale_factor).astype(int) for cont in imgs_cont]
 
             # in Eynollah: regions_without_separators
             nonsep_labels = np.copy(region_labels)
             nonsep_labels[label_seps] = 0
             nonsep_labels[label_imgs] = 0
-
-            # deskew
-            if np.abs(skew) >= SLOPE_THRESHOLD:
-                orig_shape = region_labels.shape
-                region_labels = rotate_image(region_labels, skew)
-                nonsep_labels = rotate_image(nonsep_labels, skew)
-                para_cont = rotate_contours(para_cont, skew, orig_shape)
-                head_cont = rotate_contours(head_cont, skew, orig_shape)
-                drop_cont = rotate_contours(drop_cont, skew, orig_shape)
-                marg_cont = rotate_contours(marg_cont, skew, orig_shape)
 
             marg = [Region(cont=cont) for cont in marg_cont]
             marg_l, marg_r = self.separate_marginals_and_order(
@@ -307,10 +299,13 @@ class Reorder(Eynollah):
                 drop_cont,
                 contours(marg_l),
                 contours(marg_r),
+                tabs_cont,
+                imgs_cont,
                 region_labels,
                 nonsep_labels,
                 num_col,
-                False) # in Eynollah: erosion_hurts
+                False, # in Eynollah: erosion_hurts
+                skew=skew)
 
         all_text_ids = all_text_ids[order_text]
 

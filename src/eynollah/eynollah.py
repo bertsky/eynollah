@@ -24,6 +24,7 @@ import sys
 import os
 import time
 from itertools import compress
+from collections import namedtuple
 from pathlib import Path
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -829,19 +830,23 @@ class Eynollah:
 
     def get_order_of_regions(
             self,
-            contours_only_text_parent,
-            contours_only_text_parent_h,
-            contours_drop_capitals,
+            contours_paragraph,
+            contours_heading_text,
+            contours_drop_capital,
             contours_marginalia_l,
             contours_marginalia_r,
+            contours_table_region,
+            contours_image_region,
             boxes,
     ):
         self.logger.debug("enter get_order_of_regions")
-        contours_only_text_parent = ensure_array(contours_only_text_parent)
-        contours_only_text_parent_h = ensure_array(contours_only_text_parent_h)
-        contours_drop_capitals = ensure_array(contours_drop_capitals)
+        contours_paragraph = ensure_array(contours_paragraph)
+        contours_heading_text = ensure_array(contours_heading_text)
+        contours_drop_capital = ensure_array(contours_drop_capital)
         contours_marginalia_l = ensure_array(contours_marginalia_l)
         contours_marginalia_r = ensure_array(contours_marginalia_r)
+        contours_table_region = ensure_array(contours_table_region)
+        contours_image_region = ensure_array(contours_image_region)
         boxes = np.array(boxes, dtype=int) # to be on the safe side
         c_boxes = np.stack((0.5 * boxes[:, 2:4].sum(axis=1),
                             0.5 * boxes[:, 0:2].sum(axis=1)))
@@ -877,71 +882,53 @@ class Eynollah:
             return arg_text_con
 
         def order_from_boxes(only_centers: bool):
-            arg_text_con_main = match_boxes(contours_only_text_parent, only_centers, "main")
-            arg_text_con_head = match_boxes(contours_only_text_parent_h, only_centers, "head")
-            arg_text_con_drop = match_boxes(contours_drop_capitals, only_centers, "drop")
-            arg_text_con_lmar = match_boxes(contours_marginalia_l, only_centers, "lmar")
-            arg_text_con_rmar = match_boxes(contours_marginalia_r, only_centers, "rmar")
-            args_contours_main = np.arange(len(contours_only_text_parent))
-            args_contours_head = np.arange(len(contours_only_text_parent_h))
-            args_contours_drop = np.arange(len(contours_drop_capitals))
-            args_contours_lmar = np.arange(len(contours_marginalia_l))
-            args_contours_rmar = np.arange(len(contours_marginalia_r))
-            order_by_con_main = np.zeros_like(arg_text_con_main)
-            order_by_con_head = np.zeros_like(arg_text_con_head)
-            order_by_con_drop = np.zeros_like(arg_text_con_drop)
-            order_by_con_lmar = np.zeros_like(arg_text_con_lmar)
-            order_by_con_rmar = np.zeros_like(arg_text_con_rmar)
+            match_t = namedtuple("match", ["contours", "boxes", "range", "order"])
+            matches = {name: match_t(contours,
+                                     boxes=match_boxes(contours, only_centers, name),
+                                     range=np.arange(len(contours)),
+                                     order=np.zeros(len(contours), dtype=int))
+                       for ii, (name, contours) in enumerate([
+                               ("main", contours_paragraph),
+                               ("head", contours_heading_text),
+                               ("drop", contours_drop_capital),
+                               ("lmar", contours_marginalia_l),
+                               ("rmar", contours_marginalia_r),
+                               ("tabs", contours_table_region),
+                               ("imgs", contours_image_region),
+                       ])}
+
             idx = 0
             for iij, box in enumerate(boxes):
                 ys = slice(*box[2:4])
                 xs = slice(*box[0:2])
-                args_contours_box_main = args_contours_main[arg_text_con_main == iij]
-                args_contours_box_head = args_contours_head[arg_text_con_head == iij]
-                args_contours_box_drop = args_contours_drop[arg_text_con_drop == iij]
-                args_contours_box_lmar = args_contours_lmar[arg_text_con_lmar == iij]
-                args_contours_box_rmar = args_contours_rmar[arg_text_con_rmar == iij]
+                box_ranges = {name: match.range[match.boxes == iij]
+                              for name, match in matches.items()}
 
                 _, kind_of_texts_sorted, index_by_kind_sorted = order_of_regions(
-                    contours_only_text_parent[args_contours_box_main],
-                    contours_only_text_parent_h[args_contours_box_head],
-                    contours_drop_capitals[args_contours_box_drop],
-                    contours_marginalia_l[args_contours_box_lmar],
-                    contours_marginalia_r[args_contours_box_rmar],
+                    *[match.contours[box_ranges[name]]
+                      for name, match in matches.items()],
                     r2l=self.right2left
                 )
 
-                for tidx, kind in zip(index_by_kind_sorted, kind_of_texts_sorted):
-                    if kind == 1:
-                        # print(iij, "main", args_contours_box_main[tidx], "becomes", idx)
-                        order_by_con_main[args_contours_box_main[tidx]] = idx
-                    elif kind == 2:
-                        # print(iij, "head", args_contours_box_head[tidx], "becomes", idx)
-                        order_by_con_head[args_contours_box_head[tidx]] = idx
-                    elif kind == 3:
-                        # print(iij, "drop", args_contours_box_drop[tidx], "becomes", idx)
-                        order_by_con_drop[args_contours_box_drop[tidx]] = idx
-                    elif kind == 4:
-                        # print(iij, "lmar", args_contours_box_lmar[tidx], "becomes", idx)
-                        order_by_con_lmar[args_contours_box_lmar[tidx]] = idx
-                    elif kind == 5:
-                        # print(iij, "rmar", args_contours_box_rmar[tidx], "becomes", idx)
-                        order_by_con_rmar[args_contours_box_rmar[tidx]] = idx
+                for tidx, name in zip(index_by_kind_sorted, kind_of_texts_sorted):
+                    # print(iij, name, box_ranges[name][tidx], "becomes", idx)
+                    matches[name].order[box_ranges[name][tidx]] = idx
                     idx += 1
 
             # xml writer will create region ids in the following order
-            # 1. contours_only_text_parent (main text)
-            # 2. contours_only_text_parent_h (headings)
-            # 3. contours_drop_capitals
+            # 1. contours_paragraph (main text)
+            # 2. contours_heading_text
+            # 3. contours_drop_capital
             # 4. contours_marginalia_l
             # 5. contours_marginalia_r
-            # and then create regionrefs into these ordered by order_text_new
-            order_text_new = np.argsort(np.concatenate((order_by_con_main,
-                                                        order_by_con_head,
-                                                        order_by_con_drop,
-                                                        order_by_con_lmar,
-                                                        order_by_con_rmar)))
-            return order_text_new
+            # 6. contours_table_region
+            # 7. contours_image_region
+            # and then create regionrefs into these ordered by order
+            order = np.argsort(
+                np.concatenate(
+                    [match.order
+                     for match in matches.values()]))
+            return order
 
         try:
             results = order_from_boxes(False)
@@ -1350,11 +1337,27 @@ class Eynollah:
             drop_caps_cont,
             marginals_l_cont,
             marginals_r_cont,
+            tables_cont,
+            images_cont,
             separator_mask,
             regions_without_separators,
             num_col_classifier,
             erosion_hurts,
+            skew=0.0,
     ):
+        if np.abs(skew) >= SLOPE_THRESHOLD:
+            # rotate masks and contours
+            shape = separator_mask.shape
+            textregions_cont = rotate_contours(textregions_cont, skew, shape)
+            textregions_h_cont = rotate_contours(textregions_h_cont, skew, shape)
+            drop_caps_cont = rotate_contours(drop_caps_cont, skew, shape)
+            marginals_l_cont = rotate_contours(marginals_l_cont, skew, shape)
+            marginals_r_cont = rotate_contours(marginals_r_cont, skew, shape)
+            tables_cont = rotate_contours(tables_cont, skew, shape)
+            images_cont = rotate_contours(images_cont, skew, shape)
+            separator_mask = rotate_image(separator_mask, skew)
+            regions_without_separators = rotate_image(regions_without_separators, skew)
+
         if not erosion_hurts:
             regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=2)
 
@@ -1369,16 +1372,17 @@ class Eynollah:
             drop_caps_cont,
             marginals_l_cont,
             marginals_r_cont,
+            tables_cont,
+            images_cont,
             boxes)
         return order_text
 
     def filter_small_regions(
             self,
             textregions: list[Region],
-            textregions_d: list[Region],
-            area_factor: float,
             marginals: list[Region],
-    ) -> tuple[list[Region], list[Region]]:
+            area_factor: float,
+    ) -> list[Region]:
         """
         Split list of contours (and optionally deskewed contours) into
         small (<0.1% area) and large (>=0.1%) candidates. Then identify
@@ -1411,10 +1415,7 @@ class Eynollah:
                     keep[ind_small] = False
 
         textregions = list(compress(textregions, keep))
-        if len(textregions_d):
-            textregions_d = list(compress(textregions_d, keep))
-
-        return textregions, textregions_d
+        return textregions
 
     def filter_small_textlines(
             self,
@@ -1460,10 +1461,9 @@ class Eynollah:
 
         return indexes, centersx, centersy
 
-    def filter_textregions_without_textlines(self, textregions, textregions_d):
-        keep = [len(textregion.lines) > 0 for textregion in textregions]
-        return (list(compress(textregions, keep)),
-                list(compress(textregions_d, keep)))
+    def filter_textregions_without_textlines(self, textregions):
+        return [textregion for textregion in textregions
+                if len(textregion.lines) > 0]
 
     def separate_marginals_and_order(self, marginals, mid_point_of_page_width):
         left = []
@@ -1781,25 +1781,9 @@ class Eynollah:
         textregions = [TextRegion(cont, conf=conf, lines=[])
                        for cont, conf in zip(textregions_cont, textregions_conf)]
 
-        if np.abs(slope_deskew) >= SLOPE_THRESHOLD and not self.reading_order_machine_based:
-            # rotate masks needed for reading order
-            text_regions_p_d = rotate_image(text_regions_p, slope_deskew)
-            separator_mask_d = rotate_image(separator_mask, slope_deskew)
-            regions_without_separators_d = rotate_image(regions_without_separators, slope_deskew)
-            # rotate contours needed for reading order
-            textregions_cont_d = rotate_contours(textregions_cont, slope_deskew, text_regions_p.shape)
-            textregions_d = [TextRegion(cont, lines=[]) for cont in textregions_cont_d]
-            marginals_cont_d = rotate_contours(marginals_cont, slope_deskew, text_regions_p.shape)
-            marginals_d = [TextRegion(cont, lines=[]) for cont in marginals_cont_d]
-        else:
-            textregions_d = []
-            marginals_d = []
-
         area_factor = np.reciprocal(np.prod(text_regions_p.shape).astype(float))
-        textregions, textregions_d = self.filter_small_regions(
-             textregions, textregions_d,
-             area_factor,
-             marginals)
+        textregions = self.filter_small_regions(
+             textregions, marginals, area_factor)
 
         t7 = time.time()
         self.logger.info("Region contours took %.1fs", t7 - t6)
@@ -1826,35 +1810,27 @@ class Eynollah:
             self.get_slopes_and_deskew_new_curved(marginals, *args)
             small_textlines_to_parent_adherence2(marginals, area_factor, num_col_classifier)
 
-        textregions, textregions_d = self.filter_textregions_without_textlines(
-            textregions, textregions_d)
+        textregions = self.filter_textregions_without_textlines(textregions)
         t8 = time.time()
         self.logger.info("Line contours took %.1fs", t8 - t7)
 
         (marginals_left,
          marginals_right) = self.separate_marginals_and_order(
              marginals, 0.5 * text_regions_p.shape[1])
-        (marginals_left_d,
-         marginals_right_d) = self.separate_marginals_and_order(
-             marginals_d, 0.5 * text_regions_p.shape[1])
 
         if self.full_layout:
             (text_regions_p,
              textregions,
-             textregions_h,
-             textregions_d,
-             textregions_h_d) = split_textregion_main_vs_head(
+             textregions_h) = split_textregion_main_vs_head(
                  text_regions_p,
                  regions_fully,
-                 textregions,
-                 textregions_d)
+                 textregions)
 
             if self.plotter:
                 self.plotter.save_plot_of_layout(text_regions_p, image_page, image['name'])
                 self.plotter.save_plot_of_layout_all(text_regions_p, image_page, image['name'])
         else:
             textregions_h = []
-            textregions_h_d = []
 
         if self.plotter:
             self.plotter.write_images_into_directory(contours(images), image_page,
@@ -1869,7 +1845,7 @@ class Eynollah:
 
         if self.reading_order_machine_based:
             self.logger.info("Using machine-based detection")
-            order_text = self.run_order_of_regions_with_model(
+            order = self.run_order_of_regions_with_model(
                 contours(textregions),
                 contours(textregions_h) if not self.headers_off else [],
                 contours(drop_caps),
@@ -1877,28 +1853,19 @@ class Eynollah:
                 contours(marginals_right),
                 text_regions_p)
         else:
-            if np.abs(slope_deskew) < SLOPE_THRESHOLD:
-                order_text = self.run_order_of_regions_heuristic(
-                    contours(textregions),
-                    contours(textregions_h) if not self.headers_off else [],
-                    contours(drop_caps),
-                    contours(marginals_left),
-                    contours(marginals_right),
-                    separator_mask,
-                    regions_without_separators,
-                    num_col_classifier,
-                    erosion_hurts)
-            else:
-                order_text = self.run_order_of_regions_heuristic(
-                    contours(textregions_d),
-                    contours(textregions_h_d) if not self.headers_off else [],
-                    contours(drop_caps),
-                    contours(marginals_left_d),
-                    contours(marginals_right_d),
-                    separator_mask_d,
-                    regions_without_separators_d,
-                    num_col_classifier,
-                    erosion_hurts)
+            order = self.run_order_of_regions_heuristic(
+                contours(textregions),
+                contours(textregions_h) if not self.headers_off else [],
+                contours(drop_caps),
+                contours(marginals_left),
+                contours(marginals_right),
+                contours(tables),
+                contours(images),
+                separator_mask,
+                regions_without_separators,
+                num_col_classifier,
+                erosion_hurts,
+                skew=slope_deskew)
         self.logger.info(f"Detection of reading order took {time.time() - t_order:.1f}s")
 
         self.logger.info("Step 5/5: Output Generation")
@@ -1906,7 +1873,7 @@ class Eynollah:
             page=page,
             img_bin=self.imread(image, binary=True) if self.input_binary else None,
             num_col=num_col_classifier,
-            order_of_texts=order_text,
+            order_of_texts=order,
             textregions=textregions,
             textregions_h=textregions_h,
             images=images,

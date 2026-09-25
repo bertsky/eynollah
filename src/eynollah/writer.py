@@ -187,6 +187,13 @@ class EynollahXmlWriter:
             self.serialize_lines_in_region(textregion, offset, counter, region.lines)
             pcgts.Page.add_TextRegion(textregion)
 
+        for region in tables:
+            table = TableRegionType(
+                id=counter.next_region_id,
+                Coords=CoordsType(points=self.calculate_points(region.contour, offset, 6),
+                                  conf=region.conf))
+            pcgts.Page.add_TableRegion(table)
+
         for region in images:
             image = ImageRegionType(
                 id=counter.next_region_id,
@@ -201,13 +208,6 @@ class EynollahXmlWriter:
                     Coords=CoordsType(points=self.calculate_points(region.contour, offset, 2,
                                                                    open_holes=True),
                                       conf=region.conf)))
-
-        for region in tables:
-            table = TableRegionType(
-                id=counter.next_region_id,
-                Coords=CoordsType(points=self.calculate_points(region.contour, offset, 6),
-                                  conf=region.conf))
-            pcgts.Page.add_TableRegion(table)
 
         return pcgts
 
