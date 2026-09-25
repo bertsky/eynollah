@@ -245,7 +245,7 @@ class Reorder(Eynollah):
          _, # FIXME: do not ignore existing RO (index_tot_regions)
          region_labels) = self.read_xml(xml_filename)
 
-        all_text_ids = np.array(para_ids + head_ids + drop_ids)
+        all_text_ids = np.array(para_ids + head_ids + drop_ids + marg_ids + tabs_ids + imgs_ids)
 
         self.logger.debug("ordering %d paragraphs, %d headings and %d drop-capitals",
                           len(para_ids), len(head_ids), len(drop_ids))
