@@ -112,7 +112,9 @@ class Reorder(Eynollah):
 
         seps_cont = []
         imgs_cont = []
+        imgs_ids = []
         tabs_cont = []
+        tabs_ids = []
         text_para_cont = []
         text_para_ids = []
         text_drop_cont = []
@@ -154,9 +156,11 @@ class Reorder(Eynollah):
 
             elif nn.tag.endswith('}TableRegion'):
                 tabs_cont.append(cont)
+                tabs_ids.append(id_)
 
             elif nn.tag.endswith('}GraphicRegion') or nn.tag.endswith('}ImageRegion'):
                 imgs_cont.append(cont)
+                imgs_ids.append(id_)
 
             elif nn.tag.endswith('}SeparatorRegion'):
                 seps_cont.append(cont)
@@ -172,8 +176,18 @@ class Reorder(Eynollah):
 
         return (tree1, root1,
                 bb_coord_printspace,
-                text_para_ids, text_head_ids, text_drop_ids, text_marg_ids,
-                text_para_cont, text_head_cont, text_drop_cont, text_marg_cont,
+                text_para_ids,
+                text_head_ids,
+                text_drop_ids,
+                text_marg_ids,
+                tabs_ids,
+                imgs_ids,
+                text_para_cont,
+                text_head_cont,
+                text_drop_cont,
+                text_marg_cont,
+                tabs_cont,
+                imgs_cont,
                 tot_region_ref,
                 width, height, skew, img_filename,
                 index_tot_regions,
@@ -224,8 +238,8 @@ class Reorder(Eynollah):
         file_name = Path(xml_filename).stem
         (tree_xml, root_xml,
          _, # FIXME: crop img_poly and contours (bb_coord_printspace)
-         para_ids, head_ids, drop_ids, marg_ids,
-         para_cont, head_cont, drop_cont, marg_cont,
+         para_ids, head_ids, drop_ids, marg_ids, tabs_ids, imgs_ids,
+         para_cont, head_cont, drop_cont, marg_cont, tabs_cont, imgs_cont,
          _, # FIXME: do not ignore existing RO (tot_region_ref)
          width, height, skew, img_filename,
          _, # FIXME: do not ignore existing RO (index_tot_regions)

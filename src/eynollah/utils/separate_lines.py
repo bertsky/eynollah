@@ -649,8 +649,8 @@ def get_smallest_skew(img, sigma_des, angles,
     if logger is None:
         logger = getLogger(__package__)
             
-    if plotter:
-        plotter.save_plot_of_rotation_angle(angles, results, name)
+    # if plotter:
+    #     plotter.save_plot_of_rotation_angle(angles, results, name)
     try:
         if not img.size:
             raise ValueError("image size is zero")
