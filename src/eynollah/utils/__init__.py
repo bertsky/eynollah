@@ -415,7 +415,7 @@ def find_num_col(
     # plt.show()
 
     # print("vsep", x[peaks_neg])
-    interest_neg = interest_neg - x[peaks_neg]
+    interest_neg = interest_neg - x[peaks_neg].astype(float)
     interest_neg_fin = interest_neg[(interest_neg < grenze)]
     peaks_neg_fin = peaks_neg[(interest_neg < grenze)]
 
