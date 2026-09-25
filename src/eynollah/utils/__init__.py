@@ -72,6 +72,9 @@ class Region:
 class TextRegion(Region):
     lines: list[Region] = field(default_factory=list)
 
+def contours(regions):
+    return [region.contour for region in regions]
+
 def return_multicol_separators_x_start_end(
         regions_without_separators, peak_points, top, bot,
         x_min_hor_some, x_max_hor_some, cy_hor_some, y_min_hor_some, y_max_hor_some):

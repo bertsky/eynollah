@@ -57,6 +57,7 @@ from .utils.tiling import do_prediction, do_prediction_new_concept
 from .utils import (
     Region,
     TextRegion,
+    contours,
     ensure_array,
     pairwise,
     itemgetter,
@@ -1849,8 +1850,6 @@ class Eynollah:
             textregions_h = []
             textregions_h_d = []
 
-        def contours(regions):
-            return [region.contour for region in regions]
         if self.plotter:
             self.plotter.write_images_into_directory(contours(images), image_page,
                                                      image['scale_x'], image['scale_y'], image['name'])

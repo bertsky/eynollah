@@ -27,7 +27,7 @@ from .model_zoo import EynollahModelZoo
 from .utils.resize import resize_image
 from .utils.rotate import rotate_image
 from .utils.contour import rotate_contours
-from .utils import is_xml_filename
+from .utils import Region, contours, is_xml_filename
 
 
 class Reorder(Eynollah):
@@ -172,8 +172,8 @@ class Reorder(Eynollah):
 
         return (tree1, root1,
                 bb_coord_printspace,
-                text_para_ids, text_head_ids, text_drop_ids,
-                text_para_cont, text_head_cont, text_drop_cont,
+                text_para_ids, text_head_ids, text_drop_ids, text_marg_ids,
+                text_para_cont, text_head_cont, text_drop_cont, text_marg_cont,
                 tot_region_ref,
                 width, height, skew, img_filename,
                 index_tot_regions,
@@ -224,8 +224,8 @@ class Reorder(Eynollah):
         file_name = Path(xml_filename).stem
         (tree_xml, root_xml,
          _, # FIXME: crop img_poly and contours (bb_coord_printspace)
-         para_ids, head_ids, drop_ids,
-         para_cont, head_cont, drop_cont,
+         para_ids, head_ids, drop_ids, marg_ids,
+         para_cont, head_cont, drop_cont, marg_cont,
          _, # FIXME: do not ignore existing RO (tot_region_ref)
          width, height, skew, img_filename,
          _, # FIXME: do not ignore existing RO (index_tot_regions)
@@ -276,6 +276,7 @@ class Reorder(Eynollah):
                 para_cont = [(cont * scale_factor).astype(int) for cont in para_cont]
                 head_cont = [(cont * scale_factor).astype(int) for cont in head_cont]
                 drop_cont = [(cont * scale_factor).astype(int) for cont in drop_cont]
+                marg_cont = [(cont * scale_factor).astype(int) for cont in marg_cont]
 
             # in Eynollah: regions_without_separators
             nonsep_labels = np.copy(region_labels)
@@ -290,11 +291,17 @@ class Reorder(Eynollah):
                 para_cont = rotate_contours(para_cont, skew, orig_shape)
                 head_cont = rotate_contours(head_cont, skew, orig_shape)
                 drop_cont = rotate_contours(drop_cont, skew, orig_shape)
+                marg_cont = rotate_contours(marg_cont, skew, orig_shape)
 
+            marg = [Region(cont=cont) for cont in marg_cont]
+            marg_l, marg_r = self.separate_marginals_and_order(
+                marg, region_labels.shape[1] // 2)
             order_text = self.run_order_of_regions_heuristic(
                 para_cont,
                 head_cont,
                 drop_cont,
+                contours(marg_l),
+                contours(marg_r),
                 region_labels,
                 nonsep_labels,
                 num_col,
@@ -334,4 +341,3 @@ class Reorder(Eynollah):
                        encoding="utf-8",
                        default_namespace=None)
         self.logger.info("Job done in %.1fs", time.time() - t0)
-            
