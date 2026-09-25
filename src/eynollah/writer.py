@@ -46,7 +46,6 @@ class EynollahXmlWriter:
             pcgts: PcGtsType | None = None,
     ):
         self.logger = logging.getLogger('eynollah.writer')
-        self.counter = EynollahIdCounter()
         self.dir_out = dir_out
         self.image_filename = image_filename
         self.output_filename = os.path.join(self.dir_out or "", self.image_filename_stem) + ".xml"
@@ -133,12 +132,7 @@ class EynollahXmlWriter:
         offset = [x, y]
         counter = EynollahIdCounter()
         if len(order_of_texts):
-            _counter_marginals = EynollahIdCounter(region_idx=len(order_of_texts))
-            id_of_marginalia_left = [_counter_marginals.next_region_id
-                                     for _ in marginals_left]
-            id_of_marginalia_right = [_counter_marginals.next_region_id
-                                      for _ in marginals_right]
-            xml_reading_order(pcgts.Page, order_of_texts, id_of_marginalia_left, id_of_marginalia_right)
+            xml_reading_order(pcgts.Page, order_of_texts)
 
         for region in textregions:
             textregion = TextRegionType(

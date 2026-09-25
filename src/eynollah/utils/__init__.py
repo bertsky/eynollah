@@ -703,7 +703,7 @@ def small_textlines_to_parent_adherence2(
                 # replace original
                 textregion.lines[idx_large].contour = polygon2contour(large_poly)
 
-def order_of_regions(contours_main, contours_head, contours_drop, r2l=False):
+def order_of_regions(contours_main, contours_head, contours_drop, contours_lmar, contours_rmar, r2l=False):
     """
     Order text region contours within a single column bbox in a top-down-left-right way.
 
@@ -718,6 +718,8 @@ def order_of_regions(contours_main, contours_head, contours_drop, r2l=False):
       * contours_main: paragraph text region contours to be sorted
       * contours_head: the heading text region contours to be sorted
       * contours_drop: the drop-capital region contours to be sorted
+      * contours_lmar: the left marginalia region contours to be sorted
+      * contours_rmar: the right marginalia region contours to be sorted
 
     Keyword Args:
       * r2l: whether contours within groups should be ordered
@@ -725,24 +727,38 @@ def order_of_regions(contours_main, contours_head, contours_drop, r2l=False):
 
     Returns: a tuple of
       * the list of contour indexes overall within this box
-            (i.e. into main+head+drop)
+            (i.e. into main+head+drop+lmar+rmar)
       * the list of types
-            (1 for paragraph, 2 for heading, 3 for drop-capital)
+            (1 for paragraph, 2 for heading, 3 for drop-capital, 
+             4 for left-marginalia, 5 for right-marginalia)
       * the list of contour indexes for the respective type
-            (i.e. into contours_main or contours_head or contours_drop)
+            (i.e. into contours_main or contours_head or contours_drop
+             or contours_lmar or contours_rmar)
     """
-    total = len(contours_main) + len(contours_head) + len(contours_drop)
+    total = (len(contours_main) +
+             len(contours_head) +
+             len(contours_drop) +
+             len(contours_lmar) +
+             len(contours_rmar))
     if not total:
         return [], [], []
 
-    contours = np.concatenate((contours_main, contours_head, contours_drop))
+    contours = np.concatenate((contours_main,
+                               contours_head,
+                               contours_drop,
+                               contours_lmar,
+                               contours_rmar))
     index = np.arange(len(contours))
     types = np.array([1] * len(contours_main) +
                      [2] * len(contours_head) +
-                     [3] * len(contours_drop))
+                     [3] * len(contours_drop) +
+                     [4] * len(contours_lmar) +
+                     [5] * len(contours_rmar))
     local_index = np.array(list(range(len(contours_main))) +
                            list(range(len(contours_head))) +
-                           list(range(len(contours_drop))))
+                           list(range(len(contours_drop))) +
+                           list(range(len(contours_lmar))) +
+                           list(range(len(contours_rmar))))
     cx, cy = find_center_of_contours(contours)
     y_min = [contour[:, 0, 1].min() for contour in contours]
     y_max = [contour[:, 0, 1].max() for contour in contours]

@@ -831,12 +831,16 @@ class Eynollah:
             contours_only_text_parent,
             contours_only_text_parent_h,
             contours_drop_capitals,
+            contours_marginalia_l,
+            contours_marginalia_r,
             boxes,
     ):
         self.logger.debug("enter get_order_of_regions")
         contours_only_text_parent = ensure_array(contours_only_text_parent)
         contours_only_text_parent_h = ensure_array(contours_only_text_parent_h)
         contours_drop_capitals = ensure_array(contours_drop_capitals)
+        contours_marginalia_l = ensure_array(contours_marginalia_l)
+        contours_marginalia_r = ensure_array(contours_marginalia_r)
         boxes = np.array(boxes, dtype=int) # to be on the safe side
         c_boxes = np.stack((0.5 * boxes[:, 2:4].sum(axis=1),
                             0.5 * boxes[:, 0:2].sum(axis=1)))
@@ -875,12 +879,18 @@ class Eynollah:
             arg_text_con_main = match_boxes(contours_only_text_parent, only_centers, "main")
             arg_text_con_head = match_boxes(contours_only_text_parent_h, only_centers, "head")
             arg_text_con_drop = match_boxes(contours_drop_capitals, only_centers, "drop")
+            arg_text_con_lmar = match_boxes(contours_marginalia_l, only_centers, "lmar")
+            arg_text_con_rmar = match_boxes(contours_marginalia_r, only_centers, "rmar")
             args_contours_main = np.arange(len(contours_only_text_parent))
             args_contours_head = np.arange(len(contours_only_text_parent_h))
             args_contours_drop = np.arange(len(contours_drop_capitals))
+            args_contours_lmar = np.arange(len(contours_marginalia_l))
+            args_contours_rmar = np.arange(len(contours_marginalia_r))
             order_by_con_main = np.zeros_like(arg_text_con_main)
             order_by_con_head = np.zeros_like(arg_text_con_head)
             order_by_con_drop = np.zeros_like(arg_text_con_drop)
+            order_by_con_lmar = np.zeros_like(arg_text_con_lmar)
+            order_by_con_rmar = np.zeros_like(arg_text_con_rmar)
             idx = 0
             for iij, box in enumerate(boxes):
                 ys = slice(*box[2:4])
@@ -888,11 +898,15 @@ class Eynollah:
                 args_contours_box_main = args_contours_main[arg_text_con_main == iij]
                 args_contours_box_head = args_contours_head[arg_text_con_head == iij]
                 args_contours_box_drop = args_contours_drop[arg_text_con_drop == iij]
+                args_contours_box_lmar = args_contours_lmar[arg_text_con_lmar == iij]
+                args_contours_box_rmar = args_contours_rmar[arg_text_con_rmar == iij]
 
                 _, kind_of_texts_sorted, index_by_kind_sorted = order_of_regions(
                     contours_only_text_parent[args_contours_box_main],
                     contours_only_text_parent_h[args_contours_box_head],
                     contours_drop_capitals[args_contours_box_drop],
+                    contours_marginalia_l[args_contours_box_lmar],
+                    contours_marginalia_r[args_contours_box_rmar],
                     r2l=self.right2left
                 )
 
@@ -903,19 +917,29 @@ class Eynollah:
                     elif kind == 2:
                         # print(iij, "head", args_contours_box_head[tidx], "becomes", idx)
                         order_by_con_head[args_contours_box_head[tidx]] = idx
-                    else:
+                    elif kind == 3:
                         # print(iij, "drop", args_contours_box_drop[tidx], "becomes", idx)
                         order_by_con_drop[args_contours_box_drop[tidx]] = idx
+                    elif kind == 4:
+                        # print(iij, "lmar", args_contours_box_lmar[tidx], "becomes", idx)
+                        order_by_con_lmar[args_contours_box_lmar[tidx]] = idx
+                    elif kind == 5:
+                        # print(iij, "rmar", args_contours_box_rmar[tidx], "becomes", idx)
+                        order_by_con_rmar[args_contours_box_rmar[tidx]] = idx
                     idx += 1
 
-            # xml writer will create region ids in order of
-            # - contours_only_text_parent (main text), followed by
-            # - contours_only_text_parent_h (headings), and then
-            # - contours_drop_capitals,
+            # xml writer will create region ids in the following order
+            # 1. contours_only_text_parent (main text)
+            # 2. contours_only_text_parent_h (headings)
+            # 3. contours_drop_capitals
+            # 4. contours_marginalia_l
+            # 5. contours_marginalia_r
             # and then create regionrefs into these ordered by order_text_new
             order_text_new = np.argsort(np.concatenate((order_by_con_main,
                                                         order_by_con_head,
-                                                        order_by_con_drop)))
+                                                        order_by_con_drop,
+                                                        order_by_con_lmar,
+                                                        order_by_con_rmar)))
             return order_text_new
 
         try:
@@ -1317,6 +1341,8 @@ class Eynollah:
             textregions_cont,
             textregions_h_cont,
             drop_caps_cont,
+            marginals_l_cont,
+            marginals_r_cont,
             separator_mask,
             regions_without_separators,
             num_col_classifier,
@@ -1334,6 +1360,8 @@ class Eynollah:
             textregions_cont,
             textregions_h_cont,
             drop_caps_cont,
+            marginals_l_cont,
+            marginals_r_cont,
             boxes)
         return order_text
 
@@ -1747,14 +1775,18 @@ class Eynollah:
                        for cont, conf in zip(textregions_cont, textregions_conf)]
 
         if np.abs(slope_deskew) >= SLOPE_THRESHOLD and not self.reading_order_machine_based:
+            # rotate masks needed for reading order
             text_regions_p_d = rotate_image(text_regions_p, slope_deskew)
             separator_mask_d = rotate_image(separator_mask, slope_deskew)
             regions_without_separators_d = rotate_image(regions_without_separators, slope_deskew)
-
+            # rotate contours needed for reading order
             textregions_cont_d = rotate_contours(textregions_cont, slope_deskew, text_regions_p.shape)
             textregions_d = [TextRegion(cont, lines=[]) for cont in textregions_cont_d]
+            marginals_cont_d = rotate_contours(marginals_cont, slope_deskew, text_regions_p.shape)
+            marginals_d = [TextRegion(cont, lines=[]) for cont in marginals_cont_d]
         else:
             textregions_d = []
+            marginals_d = []
 
         area_factor = np.reciprocal(np.prod(text_regions_p.shape).astype(float))
         textregions, textregions_d = self.filter_small_regions(
@@ -1795,6 +1827,9 @@ class Eynollah:
         (marginals_left,
          marginals_right) = self.separate_marginals_and_order(
              marginals, 0.5 * text_regions_p.shape[1])
+        (marginals_left_d,
+         marginals_right_d) = self.separate_marginals_and_order(
+             marginals_d, 0.5 * text_regions_p.shape[1])
 
         if self.full_layout:
             (text_regions_p,
@@ -1840,6 +1875,8 @@ class Eynollah:
                     contours(textregions),
                     contours(textregions_h) if not self.headers_off else [],
                     contours(drop_caps),
+                    contours(marginals_left),
+                    contours(marginals_right),
                     separator_mask,
                     regions_without_separators,
                     num_col_classifier,
@@ -1849,6 +1886,8 @@ class Eynollah:
                     contours(textregions_d),
                     contours(textregions_h_d) if not self.headers_off else [],
                     contours(drop_caps),
+                    contours(marginals_left_d),
+                    contours(marginals_right_d),
                     separator_mask_d,
                     regions_without_separators_d,
                     num_col_classifier,
