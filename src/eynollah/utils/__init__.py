@@ -628,6 +628,7 @@ def split_textregion_main_vs_head(
         else:
             label = label_main_final
 
+        # also update segmentation map (for model-based reading order)
         regions_model_1[(regions_model_1 == label_text) & (parent > 0)] = label
 
     ### to make it faster

@@ -1111,15 +1111,12 @@ class Eynollah:
 
     def get_boxes_order(
             self,
-            text_regions_p,
+            separator_mask,
             num_col_classifier,
             erosion_hurts,
             regions_without_separators,
             contours_h=[], # noqa: B006 (not modified)
-            label_seps_fl=6,
     ):
-        separator_mask = text_regions_p == label_seps_fl
-
         matrix_of_seps_ch, splitter_y_new = find_number_of_columns_in_document(
             regions_without_separators, separator_mask, num_col_classifier, self.tables,
             contours_h=contours_h)
@@ -1320,7 +1317,7 @@ class Eynollah:
             textregions_cont,
             textregions_h_cont,
             drop_caps_cont,
-            text_regions_p,
+            separator_mask,
             regions_without_separators,
             num_col_classifier,
             erosion_hurts,
@@ -1328,7 +1325,7 @@ class Eynollah:
         if not erosion_hurts:
             regions_without_separators = cv2.erode(regions_without_separators, KERNEL, iterations=2)
 
-        boxes = self.get_boxes_order(text_regions_p,
+        boxes = self.get_boxes_order(separator_mask,
                                      num_col_classifier,
                                      erosion_hurts,
                                      regions_without_separators,
@@ -1742,12 +1739,14 @@ class Eynollah:
         images_conf = get_region_confidences(images_cont, regions_confidence)
         images = [Region(cont, conf=conf)
                   for cont, conf in zip(images_cont, images_conf)]
+        separator_mask = (text_regions_p == label_seps_fl).astype(np.uint8)
 
         textregions_cont = return_contours_of_class(text_regions_p, label_text, MIN_AREA_REGION)
         textregions = [TextRegion(cont, lines=[]) for cont in textregions_cont]
 
         if np.abs(slope_deskew) >= SLOPE_THRESHOLD and not self.reading_order_machine_based:
             text_regions_p_d = rotate_image(text_regions_p, slope_deskew)
+            separator_mask_d = rotate_image(separator_mask, slope_deskew)
             regions_without_separators_d = rotate_image(regions_without_separators, slope_deskew)
 
             textregions_cont_d = rotate_contours(textregions_cont, slope_deskew, text_regions_p.shape)
@@ -1842,7 +1841,7 @@ class Eynollah:
                     contours(textregions),
                     contours(textregions_h) if not self.headers_off else [],
                     contours(drop_caps),
-                    text_regions_p,
+                    separator_mask,
                     regions_without_separators,
                     num_col_classifier,
                     erosion_hurts)
@@ -1851,7 +1850,7 @@ class Eynollah:
                     contours(textregions_d),
                     contours(textregions_h_d) if not self.headers_off else [],
                     contours(drop_caps),
-                    text_regions_p_d,
+                    separator_mask_d,
                     regions_without_separators_d,
                     num_col_classifier,
                     erosion_hurts)
