@@ -1434,7 +1434,7 @@ class Eynollah:
         left = []
         right = []
         for marginal in marginals:
-            (left, right)[marginal.cx  < mid_point_of_page_width].append(marginal)
+            (left, right)[marginal.cx  > mid_point_of_page_width].append(marginal)
 
         order_left = itemgetter(np.argsort([marginal.cy for marginal in left]))
         order_right = itemgetter(np.argsort([marginal.cy for marginal in right]))
@@ -1742,7 +1742,9 @@ class Eynollah:
         separator_mask = (text_regions_p == label_seps_fl).astype(np.uint8)
 
         textregions_cont = return_contours_of_class(text_regions_p, label_text, MIN_AREA_REGION)
-        textregions = [TextRegion(cont, lines=[]) for cont in textregions_cont]
+        textregions_conf = get_region_confidences(textregions_cont, regions_confidence)
+        textregions = [TextRegion(cont, conf=conf, lines=[])
+                       for cont, conf in zip(textregions_cont, textregions_conf)]
 
         if np.abs(slope_deskew) >= SLOPE_THRESHOLD and not self.reading_order_machine_based:
             text_regions_p_d = rotate_image(text_regions_p, slope_deskew)
@@ -1759,9 +1761,6 @@ class Eynollah:
              textregions, textregions_d,
              area_factor,
              marginals)
-        textregions_conf = get_region_confidences(textregions_cont, regions_confidence)
-        for textregion, conf in zip(textregions, textregions_conf):
-            textregion.conf = conf
 
         t7 = time.time()
         self.logger.info("Region contours took %.1fs", t7 - t6)
