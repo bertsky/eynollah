@@ -1142,13 +1142,16 @@ class Eynollah:
 
     def run_order_of_regions_with_model(
             self,
-            contours_only_text_parent,
-            contours_only_text_parent_h,
+            contours_paragraph,
+            contours_heading_text,
             # not trained on drops directly, but it does work:
-            contours_drop_capitals,
+            contours_drop_capital,
             # same for marginalia:
             contours_marginalia_l,
             contours_marginalia_r,
+            # same for tables and images:
+            contours_table_region,
+            contours_image_region,
             text_regions_p,
             n_batch_inference=1, # 3 (causes OOM on 8 GB GPUs)
             # input labels as in run_boxes_full_layout
@@ -1171,15 +1174,15 @@ class Eynollah:
         ver_kernel = np.ones((5, 1), dtype=np.uint8)
         hor_kernel = np.ones((1, 5), dtype=np.uint8)
         min_cont_size_to_be_dilated = 10
-        if len(contours_only_text_parent) > min_cont_size_to_be_dilated:
+        if len(contours_paragraph) > min_cont_size_to_be_dilated:
             (cx_conts, cy_conts,
              x_min_conts, x_max_conts,
              y_min_conts, y_max_conts,
-             _) = find_new_features_of_contours(contours_only_text_parent)
+             _) = find_new_features_of_contours(contours_paragraph)
             cx_conts = ensure_array(cx_conts)
             cy_conts = ensure_array(cy_conts)
-            contours_only_text_parent = ensure_array(contours_only_text_parent)
-            args_cont = np.arange(len(contours_only_text_parent))
+            contours_paragraph = ensure_array(contours_paragraph)
+            args_cont = np.arange(len(contours_paragraph))
 
             diff_x_conts = np.abs(x_max_conts[:]-x_min_conts)
             mean_x = np.mean(diff_x_conts)
@@ -1191,7 +1194,7 @@ class Eynollah:
             if len(args_cont_excluded):
                 textregion_par = np.zeros_like(text_regions_p)
                 textregion_par = cv2.fillPoly(textregion_par,
-                                              pts=contours_only_text_parent[args_cont_included],
+                                              pts=contours_paragraph[args_cont_included],
                                               color=1)
             else:
                 textregion_par = (text_regions_p == 1).astype(np.uint8)
@@ -1212,18 +1215,20 @@ class Eynollah:
                     args_cont_included)
 
             indexes_of_located_cont.extend(args_cont_excluded[:, np.newaxis])
-            contours_only_dilated.extend(contours_only_text_parent[args_cont_excluded])
+            contours_only_dilated.extend(contours_paragraph[args_cont_excluded])
 
             missing_textregions = np.setdiff1d(args_cont, np.concatenate(indexes_of_located_cont))
 
             indexes_of_located_cont.extend(missing_textregions[:, np.newaxis])
-            contours_only_dilated.extend(contours_only_text_parent[missing_textregions])
+            contours_only_dilated.extend(contours_paragraph[missing_textregions])
 
-            pos = len(contours_only_text_parent)
-            for length in [len(contours_only_text_parent_h),
-                           len(contours_drop_capitals),
+            pos = len(contours_paragraph)
+            for length in [len(contours_heading_text),
+                           len(contours_drop_capital),
                            len(contours_marginalia_l),
                            len(contours_marginalia_r),
+                           len(contours_table_region),
+                           len(contours_image_region),
             ]:
                 args = np.arange(length)[:, np.newaxis] + pos
                 indexes_of_located_cont.extend(args)
@@ -1231,7 +1236,7 @@ class Eynollah:
 
             co_text_all = contours_only_dilated
         else:
-            co_text_all = list(contours_only_text_parent)
+            co_text_all = list(contours_paragraph)
 
         img_poly = np.zeros_like(text_regions_p)
         img_poly[text_regions_p == label_text] = label_text
@@ -1242,15 +1247,17 @@ class Eynollah:
         img_poly[text_regions_p == label_seps] = label_seps_ro
 
         img_header_and_sep = np.zeros_like(text_regions_p)
-        for contour in contours_only_text_parent_h:
+        for contour in contours_heading_text:
             # rs: why (max:max+12) instad of (min:max)?
             #     what about actual seps?
             img_header_and_sep[contour[:, 0, 1].max(): contour[:, 0, 1].max() + 12,
                                contour[:, 0, 0].min(): contour[:, 0, 0].max()] = 1
-        co_text_all.extend(contours_only_text_parent_h)
-        co_text_all.extend(contours_drop_capitals)
+        co_text_all.extend(contours_heading_text)
+        co_text_all.extend(contours_drop_capital)
         co_text_all.extend(contours_marginalia_l)
         co_text_all.extend(contours_marginalia_r)
+        co_text_all.extend(contours_table_region)
+        co_text_all.extend(contours_image_region)
 
         if not len(co_text_all):
             return []
@@ -1312,7 +1319,7 @@ class Eynollah:
 
         ordered = [i[0] for i in ordered]
 
-        if len(contours_only_text_parent) > min_cont_size_to_be_dilated:
+        if len(contours_paragraph) > min_cont_size_to_be_dilated:
             org_contours_indexes = []
             for i in ordered:
                 if i < len(contours_only_dilated):
@@ -1851,6 +1858,8 @@ class Eynollah:
                 contours(drop_caps),
                 contours(marginals_left),
                 contours(marginals_right),
+                contours(tables),
+                contours(images),
                 text_regions_p)
         else:
             order = self.run_order_of_regions_heuristic(

@@ -245,6 +245,8 @@ class Reorder(Eynollah):
                 drop_cont,
                 contours(marg_l),
                 contours(marg_r),
+                tabs_cont,
+                imgs_cont,
                 region_labels)
         else:
             if img_filename and (
