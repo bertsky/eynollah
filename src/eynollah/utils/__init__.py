@@ -790,7 +790,12 @@ def order_of_regions(contours_main, contours_head, contours_drop, contours_lmar,
     for group in groups:
         group = np.array(group)
         xorder = np.argsort(cx[group])[::-1 if r2l else 1]
-        rorder.extend(group[xorder])
+        group = group[xorder]
+        for j in np.flatnonzero(types[group] == 5):
+            # right marginalia must be sorted r2l locally
+            if j:
+                group[j - 1], group[j] = group[j], group[j - 1]
+        rorder.extend(group)
 
     assert len(set(rorder)) == total
 
